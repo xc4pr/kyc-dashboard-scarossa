@@ -1,0 +1,54 @@
+{
+  "name": "kyc-dashboard-scarossa",
+  "version": "2.0.0",
+  "description": "KYC-Dashboard mit Personendatenbank und Sanktions-/PEP-Screening (SECO + dilisense) für VQF/GwG-Compliance",
+  "main": "main.js",
+  "author": "Scarossa",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "screen": "electron . --screen",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "dist": "electron-builder -lw"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.1"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "ch.scarossa.kycdashboard",
+    "productName": "KYC-Dashboard Scarossa",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "templates/**/*",
+      "field-map.json"
+    ],
+    "extraResources": [
+      { "from": "templates", "to": "templates" },
+      { "from": "field-map.json", "to": "field-map.json" }
+    ],
+    "directories": { "output": "release" },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Office"
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

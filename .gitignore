@@ -1,0 +1,24 @@
+# Abhängigkeiten & Builds
+node_modules/
+release/
+dist/
+
+# Lokale v1-Ablage (durch Electron-App ersetzt)
+.archive-v1/
+
+# Logs & temporäre Dateien
+*.log
+*.tmp
+
+# Laufzeitdaten / lokale Datenbank (falls im Projektordner)
+data/
+*.corrupt-*
+
+# Python-Tooling
+__pycache__/
+*.pyc
+
+# Editor / OS
+.claude/
+.DS_Store
+Thumbs.db

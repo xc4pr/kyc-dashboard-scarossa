@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';" />
+  <title>KYC-Dashboard Scarossa</title>
+  <script src="lib/tailwind.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: ['selector', '[data-theme="dark"]'],
+      theme: { extend: { colors: { brand: { DEFAULT: '#f7931a', light: '#ffab3d', muted: '#b96a00' } } } }
+    };
+  </script>
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body x-data="app" x-cloak>
+<div class="app">
+
+  <!-- ═══════════════ TOPBAR ═══════════════ -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">₿</span>
+      <span>KYC-Dashboard <small>Scarossa · VQF/GwG-Compliance</small></span>
+    </div>
+
+    <label class="search" x-show="view==='persons' || view==='dashboard'">
+      <span class="ic">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      </span>
+      <input type="text" x-model="query" placeholder="Person suchen (Name, Firma, Nationalität)…" @focus="view='persons'" />
+    </label>
+
+    <div class="spacer" style="flex:1"></div>
+
+    <span class="badge" :class="secoMeta.ready ? 'clear' : 'never'" :title="secoMeta.ready ? ('SECO-Liste vom ' + (secoMeta.listDate||'?')) : 'SECO-Liste nicht geladen'">
+      <span class="dot"></span> SECO <span x-text="secoMeta.ready ? '✓' : '—'"></span>
+    </span>
+    <span class="badge" :class="settings.dilisenseApiKey ? 'foreign' : 'never'" title="dilisense-Status">
+      <span class="dot"></span> dilisense <span x-text="settings.dilisenseApiKey ? '✓' : '—'"></span>
+    </span>
+
+    <button class="icon-btn btn btn-ghost" @click="toggleTheme()" :title="theme==='dark' ? 'Zu Light-Mode' : 'Zu Dark-Mode'">
+      <svg x-show="theme==='dark'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      <svg x-show="theme==='light'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </header>
+
+  <!-- ═══════════════ SIDEBAR ═══════════════ -->
+  <nav class="sidebar">
+    <button class="nav-item" :class="view==='dashboard' && 'active'" @click="view='dashboard'">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></span>
+      Dashboard
+    </button>
+    <button class="nav-item" :class="view==='persons' && 'active'" @click="view='persons'">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+      Personen
+      <span class="badge-count" x-show="persons.length" x-text="persons.length"></span>
+    </button>
+    <button class="nav-item" :class="view==='screening' && 'active'" @click="view='screening'">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+      Screening
+      <span class="badge-count" x-show="reviewCount" x-text="reviewCount"></span>
+    </button>
+    <button class="nav-item" :class="view==='form' && 'active'" @click="newPerson()">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 11h2"/></svg></span>
+      KYC-Formular
+    </button>
+    <button class="nav-item" :class="view==='settings' && 'active'" @click="view='settings'">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 5 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 3.6V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 16 5a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 20.4 9H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+      Einstellungen
+    </button>
+    <div class="sidebar-foot">
+      <div x-show="scheduler.installed"><span style="color:var(--ok)">●</span> Auto-Screening aktiv</div>
+      <div x-show="!scheduler.installed"><span style="color:var(--text-faint)">○</span> Auto-Screening aus</div>
+      <div style="margin-top:6px" x-text="'v2.0 · ' + (appInfo.platform||'')"></div>
+    </div>
+  </nav>
+
+  <!-- ═══════════════ CONTENT ═══════════════ -->
+  <main class="content">
+
+    <!-- Toast -->
+    <template x-if="toast">
+      <div class="banner" :class="toast.kind" style="position:fixed;top:72px;right:26px;z-index:50;max-width:420px;box-shadow:var(--shadow)">
+        <span x-text="toast.msg"></span>
+      </div>
+    </template>
+
+    <!-- ─────── DASHBOARD ─────── -->
+    <section x-show="view==='dashboard'">
+      <div class="view-head">
+        <div><h1>Übersicht</h1><p>Compliance-Status auf einen Blick</p></div>
+        <div class="spacer"></div>
+        <button class="btn" @click="refreshSeco()" :disabled="secoBusy">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="secoBusy && 'spin'"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+          SECO aktualisieren
+        </button>
+        <button class="btn btn-primary" @click="screenDue()" :disabled="screenBusy">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="screenBusy && 'spin'"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span x-text="screenBusy ? ('Prüfe… ' + progress.done + '/' + progress.total) : 'Fällige jetzt prüfen'"></span>
+        </button>
+      </div>
+
+      <div class="banner warn" x-show="dueCount>0" style="cursor:pointer" @click="view='screening'">
+        <strong x-text="dueCount"></strong>&nbsp;Person(en) sind zur Prüfung fällig (Intervall <span x-text="settings.screeningIntervalDays"></span> Tage). Jetzt prüfen →
+      </div>
+      <div class="banner danger" x-show="reviewCount>0" style="cursor:pointer" @click="view='screening'">
+        ⚠ <strong x-text="reviewCount"></strong>&nbsp;Person(en) mit möglichem Sanktions-/PEP-Treffer — manuelle Prüfung erforderlich →
+      </div>
+
+      <div class="tiles">
+        <div class="tile accent"><div class="k">Personen gesamt</div><div class="v" x-text="persons.length"></div><div class="foot" x-text="foreignCount + ' Ausländer'"></div></div>
+        <div class="tile ok"><div class="k">Sauber</div><div class="v" x-text="clearCount"></div><div class="foot">ohne Treffer</div></div>
+        <div class="tile warn"><div class="k">Zur Prüfung fällig</div><div class="v" x-text="dueCount"></div><div class="foot">&gt; <span x-text="settings.screeningIntervalDays"></span> Tage</div></div>
+        <div class="tile danger"><div class="k">Mögliche Treffer</div><div class="v" x-text="reviewCount"></div><div class="foot">manuell prüfen</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <div class="card card-pad">
+          <h3>Zuletzt markierte Treffer</h3>
+          <p class="sub">Personen mit Status „Prüfung nötig"</p>
+          <template x-if="flaggedPersons.length===0">
+            <div class="empty small"><div class="big">✓</div>Keine offenen Treffer</div>
+          </template>
+          <template x-for="p in flaggedPersons.slice(0,6)" :key="p.id">
+            <div class="kv" style="cursor:pointer" @click="openPerson(p.id); view='screening'">
+              <span class="k" x-text="p.identity.displayName || '—'"></span>
+              <span class="badge review"><span class="dot"></span> <span x-text="p.screeningSummary"></span></span>
+            </div>
+          </template>
+        </div>
+        <div class="card card-pad">
+          <h3>SECO-Sanktionsliste</h3>
+          <p class="sub">Schweizer Embargo-Prüfung (lokal)</p>
+          <div class="kv"><span class="k">Status</span><span x-html="secoMeta.ready ? '<span class=\'badge clear\'><span class=\'dot\'></span>geladen</span>' : '<span class=\'badge never\'><span class=\'dot\'></span>nicht geladen</span>'"></span></div>
+          <div class="kv"><span class="k">Listendatum</span><span x-text="secoMeta.listDate || '—'"></span></div>
+          <div class="kv"><span class="k">Einträge</span><span x-text="(secoMeta.entryCount||0).toLocaleString('de-CH')"></span></div>
+          <div class="kv"><span class="k">Zuletzt geladen</span><span x-text="fmtDateTime(secoMeta.lastDownload)"></span></div>
+          <div style="margin-top:14px"><button class="btn btn-sm" @click="refreshSeco()" :disabled="secoBusy"><span x-text="secoBusy ? 'Lade…' : 'Jetzt aktualisieren'"></span></button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────── PERSONEN ─────── -->
+    <section x-show="view==='persons'">
+      <div class="view-head">
+        <div><h1>Personen</h1><p><span x-text="filteredPersons.length"></span> von <span x-text="persons.length"></span> angezeigt</p></div>
+        <div class="spacer"></div>
+        <button class="btn btn-primary" @click="newPerson()">+ Neue Person</button>
+      </div>
+
+      <template x-if="persons.length===0">
+        <div class="empty"><div class="big">👤</div>Noch keine Personen erfasst.<br/><button class="btn btn-primary" style="margin-top:14px" @click="newPerson()">Erste Person anlegen</button></div>
+      </template>
+
+      <div class="table-wrap" x-show="persons.length>0">
+        <table class="data">
+          <thead><tr><th>Name / Firma</th><th>Typ</th><th>Nationalität</th><th>Letzte Prüfung</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="p in filteredPersons" :key="p.id">
+              <tr>
+                <td>
+                  <div class="row-name" x-text="p.identity.displayName || '(ohne Name)'"></div>
+                  <div class="row-sub" x-text="p.identity.kind==='entity' ? 'Firma' : (p.identity.dob ? geburt(p.identity.dob) : '')"></div>
+                </td>
+                <td>
+                  <span class="badge tag" x-text="typLabel(p)"></span>
+                  <span class="badge foreign" x-show="p.foreign" style="margin-left:4px">Ausland</span>
+                </td>
+                <td x-text="p.identity.nationality || '—'"></td>
+                <td x-text="p.lastScreenedAt ? fmtDate(p.lastScreenedAt) : '—'"></td>
+                <td><span class="badge" :class="p.screeningStatus" x-html="statusBadge(p.screeningStatus)"></span></td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-sm" @click="screenPerson(p.id)" :disabled="screenBusy" title="Jetzt prüfen">Prüfen</button>
+                    <button class="btn btn-sm" @click="openPerson(p.id)" title="Bearbeiten">Bearbeiten</button>
+                    <button class="btn btn-sm btn-danger" @click="deletePerson(p)" title="Löschen">✕</button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ─────── SCREENING ─────── -->
+    <section x-show="view==='screening'">
+      <div class="view-head">
+        <div><h1>Screening</h1><p>Sanktions-, PEP- und Kriminallisten-Prüfung</p></div>
+        <div class="spacer"></div>
+        <button class="btn" @click="refreshSeco()" :disabled="secoBusy"><span x-text="secoBusy ? 'SECO lädt…' : 'SECO aktualisieren'"></span></button>
+        <button class="btn btn-primary" @click="screenDue()" :disabled="screenBusy">
+          <span x-text="screenBusy ? ('Prüfe… ' + progress.done + '/' + progress.total) : ('Alle fälligen prüfen (' + dueCount + ')')"></span>
+        </button>
+      </div>
+
+      <div class="banner ok" x-show="lastRun && lastRun.reviewCount===0 && !screenBusy">
+        ✓ Letzter Lauf: <span x-text="lastRun.checked"></span> geprüft, keine Treffer.
+      </div>
+      <div class="banner warn" x-show="!secoMeta.ready">
+        SECO-Liste noch nicht geladen — bitte oben „SECO aktualisieren" klicken, damit die Embargo-Prüfung greift.
+      </div>
+
+      <h3 style="margin:6px 0 12px;font-size:15px">Personen mit möglichem Treffer (<span x-text="flaggedPersons.length"></span>)</h3>
+      <template x-if="flaggedPersons.length===0">
+        <div class="empty small"><div class="big">🛡️</div>Aktuell keine offenen Treffer zur Prüfung.</div>
+      </template>
+      <template x-for="p in flaggedPersons" :key="p.id">
+        <div class="card card-pad" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:700;font-size:15px" x-text="p.identity.displayName"></div>
+              <div class="small muted" x-text="typLabel(p) + (p.identity.dob ? ' · '+geburt(p.identity.dob) : '') + (p.identity.nationality ? ' · '+p.identity.nationality : '')"></div>
+            </div>
+            <span class="badge review"><span class="dot"></span>Prüfung nötig</span>
+            <div class="spacer" style="flex:1"></div>
+            <button class="btn btn-sm" @click="screenPerson(p.id)" :disabled="screenBusy">Neu prüfen</button>
+            <button class="btn btn-sm btn-primary" @click="clearReview(p)">Als geprüft/ok markieren</button>
+          </div>
+          <hr class="sep" />
+          <template x-if="p.screenings && p.screenings[0]">
+            <div>
+              <div class="small muted" style="margin-bottom:8px">Geprüft am <span x-text="fmtDateTime(p.screenings[0].at)"></span> · Quellen: <span x-text="(p.screenings[0].sources||[]).join(', ')||'—'"></span></div>
+              <template x-for="(h,i) in p.screenings[0].hits" :key="i">
+                <div class="hit-card" :class="h.source_type==='SANCTION' && 'sanction'">
+                  <div class="hn" x-text="h.name"></div>
+                  <div class="meta">
+                    <span class="badge" :class="h.source_type==='SANCTION' ? 'hit' : 'review'" x-text="h.source + ' · ' + (h.source_type||'')"></span>
+                    <span x-show="h.pep_type" x-text="'PEP: '+h.pep_type"></span>
+                    <span x-show="h.citizenship" x-text="'Staat: '+h.citizenship"></span>
+                    <span x-show="h.dob" x-text="'geb. '+h.dob"></span>
+                    <span x-show="h.years && h.years.length" x-text="'Jahr(e): '+(h.years||[]).join('/')"></span>
+                    <span x-show="h.aliases && h.aliases.length" class="muted" x-text="'Aliase: '+(h.aliases||[]).join('; ')"></span>
+                  </div>
+                </div>
+              </template>
+              <template x-if="p.screenings[0].errors && p.screenings[0].errors.length">
+                <div class="small" style="color:var(--warn);margin-top:6px">
+                  <template x-for="(e,i) in p.screenings[0].errors" :key="i"><div x-text="'⚠ '+e"></div></template>
+                </div>
+              </template>
+              <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-sm" @click="openExt('https://www.seco.admin.ch/de/suche-nach-sanktionsadressaten')">SECO-Original öffnen</button>
+                <button class="btn btn-sm" @click="openExt('https://dilisense.com/en')">dilisense öffnen</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </section>
+
+    <!-- ─────── KYC-FORMULAR ─────── -->
+    <section x-show="view==='form'" class="kyc-form">
+      <div class="view-head">
+        <div>
+          <h1 x-text="currentPersonId ? 'Person bearbeiten' : 'Neue Person erfassen'"></h1>
+          <p x-text="KYCname() || 'Vertragspartei / KYC-Daten'"></p>
+        </div>
+        <div class="spacer"></div>
+        <label class="switch" title="Ausländer → auch dilisense-Prüfung">
+          <span class="toggle" :class="foreign && 'on'" @click="foreign=!foreign"></span>
+          <span class="small">Ausländer (dilisense)</span>
+        </label>
+        <button class="btn btn-ghost" @click="cancelForm()">Abbrechen</button>
+        <button class="btn" @click="doExport()" :disabled="exporting"><span x-text="exporting ? 'Exportiere…' : '↓ 4 Formulare (ZIP)'"></span></button>
+        <button class="btn btn-primary" @click="savePerson()">💾 Person speichern</button>
+      </div>
+      <p class="banner danger small" x-show="exportError" x-text="'Exportfehler: '+exportError"></p>
+
+      <div class="kyc-subnav">
+        <template x-for="item in sections" :key="item.id">
+          <button :class="activeSection===item.id && 'active'"
+                  @click="activeSection=item.id; document.getElementById('sec-'+item.id)?.scrollIntoView({behavior:'smooth',block:'start'})"
+                  x-text="item.label"></button>
+        </template>
+      </div>
+
+      <section id="sec-stammdaten" class="section-content mb-8"
+               >
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+            <h2 class="font-semibold text-brand text-sm tracking-wide">1 — Stammdaten</h2>
+            <p class="text-gray-400 text-xs mt-0.5">Gemeinsame Angaben für alle 4 Formulare</p>
+          </div>
+          <div class="px-5 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">VQF Mitglied-Nr.</label>
+              <input type="text" x-model="data.vqf_mitglied_nr"
+                     class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                     placeholder="z.B. M-1234" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">GwG-File Nr.</label>
+              <input type="text" x-model="data.gwg_file_nr"
+                     class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                     placeholder="z.B. 2025-001" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Erfasst von (Name)</label>
+              <input type="text" x-model="data.filler_name"
+                     class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                     placeholder="Vorname Name" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Datum der Erfassung</label>
+              <input type="date" x-model="data.filler_datum"
+                     class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════
+           SEKTION 2 — VERTRAGSPARTEI
+      ══════════════════════════════════════════════════════ -->
+      <section id="sec-vertragspartei" class="section-content mb-8"
+               >
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+            <h2 class="font-semibold text-brand text-sm tracking-wide">2 — Vertragspartei</h2>
+            <p class="text-gray-400 text-xs mt-0.5">Art der Vertragspartei bestimmt die erforderlichen Felder</p>
+          </div>
+          <div class="px-5 py-5">
+
+            <!-- VP-Typ Radio -->
+            <fieldset class="mb-5">
+              <legend class="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Art der Vertragspartei</legend>
+              <div class="flex flex-wrap gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="vp_typ" value="np" x-model="data.vp_typ"
+                         class="accent-brand" />
+                  <span class="text-sm">Natürliche Person</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="vp_typ" value="eu" x-model="data.vp_typ"
+                         class="accent-brand" />
+                  <span class="text-sm">Einzelunternehmen</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="vp_typ" value="jp" x-model="data.vp_typ"
+                         class="accent-brand" />
+                  <span class="text-sm">Juristische Person</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <!-- NP-Felder (np und eu) -->
+            <div x-show="data.vp_typ === 'np' || data.vp_typ === 'eu'">
+              <div class="mb-3 pb-2 border-b border-gray-100">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Natürliche Person</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Vorname</label>
+                  <input type="text" x-model="data.np_vorname"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Max" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Name</label>
+                  <input type="text" x-model="data.np_name"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Mustermann" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Strasse und Hausnummer</label>
+                  <input type="text" x-model="data.np_strasse"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Musterstrasse 1" />
+                </div>
+                <div class="sm:col-span-1" style="max-width:120px">
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">PLZ</label>
+                  <input type="text" x-model="data.np_plz" maxlength="6"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="8001" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Ort</label>
+                  <input type="text" x-model="data.np_ort"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Zürich" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Telefon</label>
+                  <input type="tel" x-model="data.np_telefon"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="+41 44 000 00 00" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">E-Mail</label>
+                  <input type="email" x-model="data.np_email"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="max@beispiel.ch" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Geburtsdatum</label>
+                  <input type="date" x-model="data.np_geburtsdatum"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Staatsangehörigkeit</label>
+                  <input type="text" x-model="data.np_staatsangehoerigkeit"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="z.B. Schweiz" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Identifikationsdokument</label>
+                  <input type="text" x-model="data.np_identifikationsdokument"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="z.B. CH-Pass Nr. X1234567, gültig bis 01.01.2030" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" x-model="data.np_ausweiskopie_beigefuegt" class="accent-brand w-4 h-4" />
+                    <span class="text-sm">Kopie des Ausweises im Anhang beigefügt</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- EU-Zusatzfelder (nur eu) -->
+            <div x-show="data.vp_typ === 'eu'">
+              <div class="mb-3 pb-2 border-b border-gray-100 mt-4">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Einzelunternehmen (zusätzlich)</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Firma</label>
+                  <input type="text" x-model="data.eu_firma"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Mustermann Consulting" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Strasse und Hausnummer (Geschäft)</label>
+                  <input type="text" x-model="data.eu_strasse"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Bürostrasse 5" />
+                </div>
+                <div style="max-width:120px">
+                  <label class="block text-xs font-medium text-gray-600 mb-1">PLZ</label>
+                  <input type="text" x-model="data.eu_plz" maxlength="6"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="8001" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Ort (Geschäft)</label>
+                  <input type="text" x-model="data.eu_ort"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Zürich" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Identifikationsdokument (Unternehmen)</label>
+                  <input type="text" x-model="data.eu_identifikationsdokument"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="HR-Auszug Nr., Datum" />
+                </div>
+                <div class="flex items-end pb-1">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" x-model="data.eu_kopie_beigefuegt" class="accent-brand w-4 h-4" />
+                    <span class="text-sm">Kopie im Anhang beigefügt</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- JP-Felder -->
+            <div x-show="data.vp_typ === 'jp'">
+              <div class="mb-3 pb-2 border-b border-gray-100">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Juristische Person</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Firma</label>
+                  <input type="text" x-model="data.jp_firma"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Muster AG" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Strasse und Hausnummer (Domizil)</label>
+                  <input type="text" x-model="data.jp_strasse"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Musterstrasse 1" />
+                </div>
+                <div style="max-width:120px">
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">PLZ</label>
+                  <input type="text" x-model="data.jp_plz" maxlength="6"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="8001" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Ort (Domizil)</label>
+                  <input type="text" x-model="data.jp_ort"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Zürich" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Kontaktperson Vorname</label>
+                  <input type="text" x-model="data.jp_kp_vorname"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Max" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Kontaktperson Name</label>
+                  <input type="text" x-model="data.jp_kp_name"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Mustermann" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Telefon</label>
+                  <input type="tel" x-model="data.jp_telefon"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="+41 44 000 00 00" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">E-Mail</label>
+                  <input type="email" x-model="data.jp_email"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="kontakt@muster-ag.ch" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Identifikationsdokument (max. 12 Mon. alt)</label>
+                  <input type="text" x-model="data.jp_identifikationsdokument"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="HR-Auszug Nr., Datum" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" x-model="data.jp_kopie_beigefuegt" class="accent-brand w-4 h-4" />
+                    <span class="text-sm">Kopie im Anhang beigefügt</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════
+           SEKTION 3 — ERÖFFNER (nur JP)
+      ══════════════════════════════════════════════════════ -->
+      <section id="sec-eroeffner" class="section-content mb-8"
+               >
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg flex items-center gap-3">
+            <div>
+              <h2 class="font-semibold text-brand text-sm tracking-wide">3 — Eröffner der Geschäftsbeziehung</h2>
+              <p class="text-gray-400 text-xs mt-0.5">Nur relevant bei juristischen Personen</p>
+            </div>
+            <span x-show="data.vp_typ !== 'jp'"
+                  class="ml-auto text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded">
+              Nur bei JP
+            </span>
+          </div>
+
+          <div class="px-5 py-5">
+            <!-- Info-Banner wenn nicht JP -->
+            <div x-show="data.vp_typ !== 'jp'"
+                 class="bg-gray-50 border border-gray-200 rounded px-4 py-3 text-gray-500 text-sm italic">
+              Dieser Abschnitt ist nur bei Vertragspartei-Typ «Juristische Person» relevant.
+            </div>
+
+            <!-- Eröffner-Felder nur bei JP -->
+            <div x-show="data.vp_typ === 'jp'">
+
+              <!-- Eröffner 1 -->
+              <div class="mb-6">
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="bg-brand text-white text-xs font-bold px-2 py-0.5 rounded">E1</span>
+                  <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide">Eröffner 1</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Vorname</label>
+                    <input type="text" x-model="data.eroeffner_0_vorname"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Max" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Name</label>
+                    <input type="text" x-model="data.eroeffner_0_nachname"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Mustermann" />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Strasse und Hausnummer</label>
+                    <input type="text" x-model="data.eroeffner_0_strasse"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Musterstrasse 1" />
+                  </div>
+                  <div style="max-width:120px">
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">PLZ</label>
+                    <input type="text" x-model="data.eroeffner_0_plz" maxlength="6"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="8001" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Ort</label>
+                    <input type="text" x-model="data.eroeffner_0_ort"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Zürich" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Geburtsdatum</label>
+                    <input type="date" x-model="data.eroeffner_0_geburtsdatum"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Staatsangehörigkeit</label>
+                    <input type="text" x-model="data.eroeffner_0_staatsang"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Art der Zeichnungsberechtigung</label>
+                    <input type="text" x-model="data.eroeffner_0_berechtigung"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="z.B. Einzelunterschrift, Kollektiv" />
+                  </div>
+                </div>
+                <!-- Kopie im Anhang E1 -->
+                <div class="mt-3">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" x-model="data.eroeffner_0_dok_kopie" class="accent-brand w-4 h-4" />
+                    <span class="text-sm">Kopie Identifikationsdokument im Anhang beigefügt</span>
+                  </label>
+                </div>
+
+                <!-- Legitimation E1 -->
+                <div class="mt-3 bg-gray-50 rounded p-3 border border-gray-100">
+                  <p class="text-xs font-semibold text-gray-600 mb-2">Legitimation Eröffner 1</p>
+                  <div class="flex flex-wrap gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" x-model="data.eroeffner_0_leg_hr" class="accent-brand w-4 h-4" />
+                      <span class="text-sm">HR-Auszug</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" x-model="data.eroeffner_0_leg_vollmacht" class="accent-brand w-4 h-4" />
+                      <span class="text-sm">Vollmacht</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" x-model="data.eroeffner_0_leg_anderes_cb" class="accent-brand w-4 h-4" />
+                      <span class="text-sm">Anderes</span>
+                    </label>
+                  </div>
+                  <div x-show="data.eroeffner_0_leg_anderes_cb" class="mt-2">
+                    <input type="text" x-model="data.eroeffner_0_leg_anderes_tx"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Beschreibung des Legitimationsdokuments" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="border-t border-dashed border-gray-200 my-4"></div>
+
+              <!-- Eröffner 2 -->
+              <div>
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="bg-brand-muted text-white text-xs font-bold px-2 py-0.5 rounded">E2</span>
+                  <span class="text-xs font-semibold text-gray-700 uppercase tracking-wide">Eröffner 2 (falls vorhanden)</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Vorname</label>
+                    <input type="text" x-model="data.eroeffner_1_vorname"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Max" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Name</label>
+                    <input type="text" x-model="data.eroeffner_1_nachname"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Mustermann" />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Strasse und Hausnummer</label>
+                    <input type="text" x-model="data.eroeffner_1_strasse"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Musterstrasse 1" />
+                  </div>
+                  <div style="max-width:120px">
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">PLZ</label>
+                    <input type="text" x-model="data.eroeffner_1_plz" maxlength="6"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="8001" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Ort</label>
+                    <input type="text" x-model="data.eroeffner_1_ort"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Zürich" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Geburtsdatum</label>
+                    <input type="date" x-model="data.eroeffner_1_geburtsdatum"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Staatsangehörigkeit</label>
+                    <input type="text" x-model="data.eroeffner_1_staatsang"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+                  </div>
+                  <div>
+                    <label class="req block text-xs font-medium text-gray-600 mb-1">Art der Zeichnungsberechtigung</label>
+                    <input type="text" x-model="data.eroeffner_1_berechtigung"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="z.B. Einzelunterschrift, Kollektiv" />
+                  </div>
+                </div>
+                <!-- Kopie im Anhang E2 -->
+                <div class="mt-3">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" x-model="data.eroeffner_1_dok_kopie" class="accent-brand w-4 h-4" />
+                    <span class="text-sm">Kopie Identifikationsdokument im Anhang beigefügt</span>
+                  </label>
+                </div>
+
+                <!-- Legitimation E2 -->
+                <div class="mt-3 bg-gray-50 rounded p-3 border border-gray-100">
+                  <p class="text-xs font-semibold text-gray-600 mb-2">Legitimation Eröffner 2</p>
+                  <div class="flex flex-wrap gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" x-model="data.eroeffner_1_leg_hr" class="accent-brand w-4 h-4" />
+                      <span class="text-sm">HR-Auszug</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" x-model="data.eroeffner_1_leg_vollmacht" class="accent-brand w-4 h-4" />
+                      <span class="text-sm">Vollmacht</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" x-model="data.eroeffner_1_leg_anderes_cb" class="accent-brand w-4 h-4" />
+                      <span class="text-sm">Anderes</span>
+                    </label>
+                  </div>
+                  <div x-show="data.eroeffner_1_leg_anderes_cb" class="mt-2">
+                    <input type="text" x-model="data.eroeffner_1_leg_anderes_tx"
+                           class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="Beschreibung des Legitimationsdokuments" />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════
+           SEKTION 4 — AUFNAHME GESCHÄFTSBEZIEHUNG (902.1)
+      ══════════════════════════════════════════════════════ -->
+      <section id="sec-aufnahme" class="section-content mb-8"
+               >
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+            <h2 class="font-semibold text-brand text-sm tracking-wide">4 — Aufnahme der Geschäftsbeziehung (902.1)</h2>
+          </div>
+          <div class="px-5 py-5 space-y-5">
+
+            <!-- Vertragsschluss Datum -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Datum Vertragsschluss</label>
+                <input type="date" x-model="data.vertragsschluss_datum"
+                       class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+              </div>
+            </div>
+
+            <!-- Aufnahme Art -->
+            <fieldset>
+              <legend class="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Art der Aufnahme</legend>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.aufnahme_persoenlich" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Persönliche Vorsprache der Vertragspartei</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.aufnahme_korrespondenz" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Korrespondenzweg</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.aufnahme_echtheit" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Echtheitsbestätigte Kopie liegt vor</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.aufnahme_wohnsitz" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Wohnsitzadresse überprüft</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <!-- Korrespondenz-Zustellung -->
+            <fieldset>
+              <legend class="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Korrespondenz-Zustellung</legend>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.korrespondenz_vertragspartei" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">An Vertragspartei</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.korrespondenz_banklagernd" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Banklagernd</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.korrespondenz_mitglied" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">An das Mitglied</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.korrespondenz_dritte" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">An Dritte</span>
+                </label>
+              </div>
+              <div x-show="data.korrespondenz_dritte" class="mt-2 ml-6">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Adresse der Drittperson</label>
+                <input type="text" x-model="data.korrespondenz_dritte_adresse"
+                       class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                       placeholder="Name, Adresse" />
+              </div>
+            </fieldset>
+
+            <!-- Korrespondenzsprache -->
+            <fieldset>
+              <legend class="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Korrespondenzsprache</legend>
+              <div class="flex flex-wrap gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.sprache_deutsch" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Deutsch</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.sprache_englisch" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Englisch</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.sprache_franzoesisch" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Französisch</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.sprache_andere_cb" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Andere</span>
+                </label>
+              </div>
+              <div x-show="data.sprache_andere_cb" class="mt-2">
+                <input type="text" x-model="data.sprache_andere_tx"
+                       class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                       placeholder="Sprache angeben" />
+              </div>
+            </fieldset>
+
+            <!-- Embargo -->
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Embargo- / Terrorismuslisten – Prüfung Resultat</label>
+              <textarea x-model="data.embargo_pruefung_resultat" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Ergebnis der Embargo-Prüfung"></textarea>
+            </div>
+
+            <!-- Weiteres -->
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Weiteres</label>
+              <textarea x-model="data.weiteres" rows="3"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Weitere Bemerkungen"></textarea>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════
+           SEKTION 5 — WIRTSCHAFTLICH BERECHTIGTER (WB)
+      ══════════════════════════════════════════════════════ -->
+      <section id="sec-wb" class="section-content mb-8"
+               >
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+            <h2 class="font-semibold text-brand text-sm tracking-wide">5 — Wirtschaftlich Berechtigter / 902.9</h2>
+          </div>
+          <div class="px-5 py-5 space-y-5">
+
+            <!-- Abschnitt A: WB-Typ (902.1 Checkboxen) -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">A — WB-Typ (für Formular 902.1)</h3>
+              <div class="space-y-2">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.wb_typ_np_selber" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Natürliche Person, die selber wirtschaftlich berechtigt ist</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.wb_typ_operative_jp" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Operative juristische Person</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.wb_typ_stiftung" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Stiftung (902.11/12)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.wb_typ_trust" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Trust (902.13)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.wb_typ_versicherung" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Lebensversicherung</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.wb_typ_902_9" class="accent-brand w-4 h-4" />
+                  <span class="text-sm font-medium text-orange-700">Alle übrigen Fälle → Formular 902.9 (A) erforderlich</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Abschnitt B: WB-Personalien (902.9) -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">B — WB-Personalien (Formular 902.9)</h3>
+
+              <!-- Hinweis-Banner 902.9 -->
+              <div class="mb-4 bg-amber-50 border border-amber-300 rounded px-4 py-2.5 flex items-start gap-2">
+                <span class="text-amber-600 font-bold text-sm flex-shrink-0">&#9888;</span>
+                <p class="text-amber-800 text-sm">
+                  Formular 902.9 muss vom Kunden <strong>persönlich unterschrieben</strong> werden! Bitte ausdrucken und unterzeichnen lassen.
+                </p>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Name(n)</label>
+                  <input type="text" x-model="data.wb_name"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Vorname(n)</label>
+                  <input type="text" x-model="data.wb_vorname"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Geburtsdatum</label>
+                  <input type="date" x-model="data.wb_geburtsdatum"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Nationalität</label>
+                  <input type="text" x-model="data.wb_nationalitaet"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="z.B. Schweiz" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Strasse und Hausnummer</label>
+                  <input type="text" x-model="data.wb_strasse"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Musterstrasse 1" />
+                </div>
+                <div style="max-width:120px">
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">PLZ</label>
+                  <input type="text" x-model="data.wb_plz" maxlength="6"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="8001" />
+                </div>
+                <div>
+                  <label class="req block text-xs font-medium text-gray-600 mb-1">Ort</label>
+                  <input type="text" x-model="data.wb_ort"
+                         class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                         placeholder="Zürich" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Laufkunden / Kassageschäft -->
+            <div class="border-t border-gray-100 pt-5">
+              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Laufkunden / Kassageschäft</h3>
+              <div class="space-y-2 mb-3">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.laufkunde_geldwechsel" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Geldwechsel</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.laufkunde_wertuebertragung" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Geld-/Wertübertragung</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.laufkunde_anderes_cb" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Anderes Kassageschäft</span>
+                </label>
+              </div>
+              <div x-show="data.laufkunde_anderes_cb" class="mb-3">
+                <input type="text" x-model="data.laufkunde_anderes_tx"
+                       class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                       placeholder="Art des Kassageschäfts" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Zweck der Geschäftsbeziehung</label>
+                <textarea x-model="data.laufkunde_zweck" rows="2"
+                          class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                          placeholder="Angaben zum Zweck"></textarea>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════
+           SEKTION 6 — RISIKOPROFIL (902.4)
+      ══════════════════════════════════════════════════════ -->
+      <section id="sec-risikoprofil" class="section-content mb-8"
+               >
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+            <h2 class="font-semibold text-brand text-sm tracking-wide">6 — Risikoprofil (902.4)</h2>
+          </div>
+          <div class="px-5 py-5 space-y-6">
+
+            <!-- PEP-Sektion -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3 border-b border-gray-100 pb-1">
+                Politisch exponierte Personen (PEP)
+              </h3>
+
+              <!-- PEP-Tabelle -->
+              <div class="space-y-3">
+
+                <!-- Ausländische PEP -->
+                <div class="flex items-center gap-4 py-2 border-b border-gray-50">
+                  <span class="text-sm flex-1">Ausländische PEP</span>
+                  <div class="flex gap-4">
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="pep_ausl" :value="false"
+                             :checked="data.pep_ausl_nein"
+                             @change="setPep('pep_ausl', false)"
+                             class="accent-brand" />
+                      <span class="text-sm text-gray-600">Nein</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="pep_ausl" :value="true"
+                             :checked="data.pep_ausl_ja"
+                             @change="setPep('pep_ausl', true)"
+                             class="accent-brand" />
+                      <span class="text-sm text-orange-600 font-medium">Ja</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Inländische PEP -->
+                <div class="flex items-center gap-4 py-2 border-b border-gray-50">
+                  <span class="text-sm flex-1">Inländische PEP</span>
+                  <div class="flex gap-4">
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="pep_inl" :value="false"
+                             :checked="data.pep_inl_nein"
+                             @change="setPep('pep_inl', false)"
+                             class="accent-brand" />
+                      <span class="text-sm text-gray-600">Nein</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="pep_inl" :value="true"
+                             :checked="data.pep_inl_ja"
+                             @change="setPep('pep_inl', true)"
+                             class="accent-brand" />
+                      <span class="text-sm text-orange-600 font-medium">Ja</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- PEP Int. Org. -->
+                <div class="flex items-center gap-4 py-2">
+                  <span class="text-sm flex-1">PEP int. Organisation</span>
+                  <div class="flex gap-4">
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="pep_int" :value="false"
+                             :checked="data.pep_int_nein"
+                             @change="setPep('pep_int', false)"
+                             class="accent-brand" />
+                      <span class="text-sm text-gray-600">Nein</span>
+                    </label>
+                    <label class="flex items-center gap-1.5 cursor-pointer">
+                      <input type="radio" name="pep_int" :value="true"
+                             :checked="data.pep_int_ja"
+                             @change="setPep('pep_int', true)"
+                             class="accent-brand" />
+                      <span class="text-sm text-orange-600 font-medium">Ja</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- PEP Ja → Zustimmungsdatum -->
+              <div x-show="data.pep_ausl_ja || data.pep_inl_ja || data.pep_int_ja"
+                   class="mt-3 bg-orange-50 border border-orange-200 rounded px-4 py-3">
+                <label class="block text-xs font-medium text-orange-700 mb-1">
+                  Datum der Zustimmung (Vorgesetzte/r)
+                </label>
+                <input type="date" x-model="data.pep_zustimmung_datum"
+                       class="border border-orange-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-400" />
+              </div>
+            </div>
+
+            <!-- High-Risk-Land -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3 border-b border-gray-100 pb-1">
+                High-Risk-Land
+              </h3>
+              <div class="flex items-center gap-4">
+                <span class="text-sm flex-1">High-Risk-Land involviert</span>
+                <div class="flex gap-4">
+                  <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="high_risk" :value="false"
+                           :checked="data.high_risk_nein"
+                           @change="data.high_risk_nein = true; data.high_risk_ja = false"
+                           class="accent-brand" />
+                    <span class="text-sm text-gray-600">Nein</span>
+                  </label>
+                  <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="high_risk" :value="true"
+                           :checked="data.high_risk_ja"
+                           @change="data.high_risk_nein = false; data.high_risk_ja = true"
+                           class="accent-brand" />
+                    <span class="text-sm text-orange-600 font-medium">Ja</span>
+                  </label>
+                </div>
+              </div>
+              <div x-show="data.high_risk_ja" class="mt-3 bg-orange-50 border border-orange-200 rounded px-4 py-3">
+                <label class="block text-xs font-medium text-orange-700 mb-1">
+                  Datum der Zustimmung (Vorgesetzte/r)
+                </label>
+                <input type="date" x-model="data.high_risk_zustimmung_datum"
+                       class="border border-orange-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-400" />
+              </div>
+            </div>
+
+            <!-- Länderrisiken -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3 border-b border-gray-100 pb-1">
+                Länder- und Produktrisiken
+              </h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="bg-gray-50">
+                      <th class="text-left px-3 py-2 text-xs font-semibold text-gray-600 w-1/2">Kriterium</th>
+                      <th class="text-center px-2 py-2 text-xs font-semibold text-green-700 w-1/6">0 – Kein Risiko</th>
+                      <th class="text-center px-2 py-2 text-xs font-semibold text-orange-600 w-1/6">1 – Erhöht</th>
+                      <th class="text-center px-2 py-2 text-xs font-semibold text-red-700 w-1/6">2 – Hoch</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-50">
+                    <!-- lr_sitz -->
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="px-3 py-2.5 text-gray-700">Sitz/Wohnsitz &amp; Staatsangehörigkeit</td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="lr_sitz" :value="0" x-model.number="data.lr_sitz" class="accent-green-600 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="lr_sitz" :value="1" x-model.number="data.lr_sitz" class="accent-orange-500 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="lr_sitz" :value="2" x-model.number="data.lr_sitz" class="accent-red-600 w-4 h-4" />
+                      </td>
+                    </tr>
+                    <!-- lr_geschaeft -->
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="px-3 py-2.5 text-gray-700">Ort der Geschäftstätigkeit</td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="lr_geschaeft" :value="0" x-model.number="data.lr_geschaeft" class="accent-green-600 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="lr_geschaeft" :value="1" x-model.number="data.lr_geschaeft" class="accent-orange-500 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="lr_geschaeft" :value="2" x-model.number="data.lr_geschaeft" class="accent-red-600 w-4 h-4" />
+                      </td>
+                    </tr>
+                    <!-- lr_zahlung -->
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="px-3 py-2.5 text-gray-700">Herkunfts-/Zielland häufiger Zahlungen</td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="lr_zahlung" :value="0" x-model.number="data.lr_zahlung" class="accent-green-600 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="lr_zahlung" :value="1" x-model.number="data.lr_zahlung" class="accent-orange-500 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="lr_zahlung" :value="2" x-model.number="data.lr_zahlung" class="accent-red-600 w-4 h-4" />
+                      </td>
+                    </tr>
+                    <!-- branchenrisiko -->
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="px-3 py-2.5 text-gray-700">Art der Geschäftstätigkeit (Branchenrisiko)</td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="branchenrisiko" :value="0" x-model.number="data.branchenrisiko" class="accent-green-600 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="branchenrisiko" :value="1" x-model.number="data.branchenrisiko" class="accent-orange-500 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="branchenrisiko" :value="2" x-model.number="data.branchenrisiko" class="accent-red-600 w-4 h-4" />
+                      </td>
+                    </tr>
+                    <!-- kontaktrisiko -->
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="px-3 py-2.5 text-gray-700">Kontaktformen</td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="kontaktrisiko" :value="0" x-model.number="data.kontaktrisiko" class="accent-green-600 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="kontaktrisiko" :value="1" x-model.number="data.kontaktrisiko" class="accent-orange-500 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="kontaktrisiko" :value="2" x-model.number="data.kontaktrisiko" class="accent-red-600 w-4 h-4" />
+                      </td>
+                    </tr>
+                    <!-- produktrisiko -->
+                    <tr class="hover:bg-gray-50 transition-colors">
+                      <td class="px-3 py-2.5 text-gray-700">Art der Dienstleistungen (Produktrisiko)</td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="produktrisiko" :value="0" x-model.number="data.produktrisiko" class="accent-green-600 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="produktrisiko" :value="1" x-model.number="data.produktrisiko" class="accent-orange-500 w-4 h-4" />
+                      </td>
+                      <td class="text-center px-2 py-2.5">
+                        <input type="radio" name="produktrisiko" :value="2" x-model.number="data.produktrisiko" class="accent-red-600 w-4 h-4" />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Eigene Kriterien -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3 border-b border-gray-100 pb-1">
+                Eigene Kriterien
+              </h3>
+              <div class="space-y-4">
+
+                <!-- EK1 -->
+                <div class="bg-gray-50 rounded p-3 border border-gray-100">
+                  <div class="flex flex-wrap items-end gap-3">
+                    <div class="flex-1 min-w-40">
+                      <label class="block text-xs font-medium text-gray-600 mb-1">Eigenes Kriterium 1 – Bezeichnung</label>
+                      <input type="text" x-model="data.ek1_bezeichnung"
+                             class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                             placeholder="Bezeichnung des Kriteriums" />
+                    </div>
+                    <fieldset class="flex gap-3 pb-1">
+                      <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="ek1_risiko" :value="0" x-model.number="data.ek1_risiko" class="accent-green-600 w-4 h-4" />
+                        <span class="text-xs text-green-700 font-medium">0</span>
+                      </label>
+                      <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="ek1_risiko" :value="1" x-model.number="data.ek1_risiko" class="accent-orange-500 w-4 h-4" />
+                        <span class="text-xs text-orange-600 font-medium">1</span>
+                      </label>
+                      <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="ek1_risiko" :value="2" x-model.number="data.ek1_risiko" class="accent-red-600 w-4 h-4" />
+                        <span class="text-xs text-red-700 font-medium">2</span>
+                      </label>
+                    </fieldset>
+                  </div>
+                </div>
+
+                <!-- EK2 -->
+                <div class="bg-gray-50 rounded p-3 border border-gray-100">
+                  <div class="flex flex-wrap items-end gap-3">
+                    <div class="flex-1 min-w-40">
+                      <label class="block text-xs font-medium text-gray-600 mb-1">Eigenes Kriterium 2 – Bezeichnung</label>
+                      <input type="text" x-model="data.ek2_bezeichnung"
+                             class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                             placeholder="Bezeichnung des Kriteriums" />
+                    </div>
+                    <fieldset class="flex gap-3 pb-1">
+                      <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="ek2_risiko" :value="0" x-model.number="data.ek2_risiko" class="accent-green-600 w-4 h-4" />
+                        <span class="text-xs text-green-700 font-medium">0</span>
+                      </label>
+                      <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="ek2_risiko" :value="1" x-model.number="data.ek2_risiko" class="accent-orange-500 w-4 h-4" />
+                        <span class="text-xs text-orange-600 font-medium">1</span>
+                      </label>
+                      <label class="flex items-center gap-1.5 cursor-pointer">
+                        <input type="radio" name="ek2_risiko" :value="2" x-model.number="data.ek2_risiko" class="accent-red-600 w-4 h-4" />
+                        <span class="text-xs text-red-700 font-medium">2</span>
+                      </label>
+                    </fieldset>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Risikoklassifizierung -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3 border-b border-gray-100 pb-1">
+                Risikoklassifizierung
+              </h3>
+              <div class="space-y-2 mb-3">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="risiko_klasse"
+                         :checked="data.risiko_ohne_erhoehtes"
+                         @change="setRisiko(true)"
+                         class="accent-green-600 w-4 h-4" />
+                  <span class="text-sm">Ohne erhöhtes Risiko</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="risiko_klasse"
+                         :checked="data.risiko_mit_erhoehtem"
+                         @change="setRisiko(false)"
+                         class="accent-red-600 w-4 h-4" />
+                  <span class="text-sm text-red-700 font-medium">Mit erhöhtem Risiko</span>
+                </label>
+              </div>
+
+              <!-- Zustimmung Vorgesetzte/r nur bei erhöhtem Risiko -->
+              <div x-show="data.risiko_mit_erhoehtem" class="ml-6 bg-red-50 border border-red-200 rounded px-4 py-3 mb-3">
+                <label class="block text-xs font-medium text-red-700 mb-1">Datum Zustimmung Vorgesetzte/r</label>
+                <input type="date" x-model="data.vorgesetzte_zustimmung_datum"
+                       class="border border-red-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-400" />
+              </div>
+
+              <div class="mb-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Begründung abweichende Risikobewertung</label>
+                <textarea x-model="data.risiko_begruendung_abweichend" rows="3"
+                          class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                          placeholder="Begründung sofern von Standard abgewichen wird"></textarea>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Eigenes Transaktionskriterium</label>
+                <textarea x-model="data.eigenes_transaktionskriterium" rows="2"
+                          class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                          placeholder="Falls abweichendes Transaktionskriterium definiert"></textarea>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════
+           SEKTION 7 — KUNDENPROFIL (902.5)
+      ══════════════════════════════════════════════════════ -->
+      <section id="sec-kundenprofil" class="section-content mb-8"
+               >
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+            <h2 class="font-semibold text-brand text-sm tracking-wide">7 — Kundenprofil (902.5)</h2>
+          </div>
+          <div class="px-5 py-5 space-y-4">
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Beruf, geschäftliche Aktivitäten</label>
+              <textarea x-model="data.kp_beruf" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Tätigkeit, Branche, Funktion"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Einkommen und Vermögen, Verpflichtungen</label>
+              <textarea x-model="data.kp_einkommen" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Einkommensquellen, Vermögensstruktur, wesentliche Verpflichtungen"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Art, Betrag und Währung der eingebrachten Vermögenswerte</label>
+              <textarea x-model="data.kp_eingebrachte_art" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Art und Umfang der eingebrachten Werte"></textarea>
+            </div>
+
+            <!-- Kategorie Herkunft -->
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-2">Kategorie der Herkunft</label>
+              <div class="flex flex-wrap gap-4 mb-2">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.kp_kategorie_ersparnis" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Ersparnis</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.kp_kategorie_geschaeft" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Eigener Geschäftsbetrieb</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.kp_kategorie_erbschaft" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Erbschaft / Schenkung</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" x-model="data.kp_kategorie_anderes_cb" class="accent-brand w-4 h-4" />
+                  <span class="text-sm">Anderes</span>
+                </label>
+              </div>
+              <div x-show="data.kp_kategorie_anderes_cb">
+                <input type="text" x-model="data.kp_kategorie_anderes_tx"
+                       class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                       placeholder="Andere Herkunft beschreiben" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Detaillierte wirtschaftliche Herkunft der Vermögenswerte</label>
+              <textarea x-model="data.kp_herkunft_detailliert" rows="3"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Genaue Beschreibung der Herkunft"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Zweck des Geschäfts / der Geschäftsbeziehung</label>
+              <textarea x-model="data.kp_zweck" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Zweck und Ziel der Geschäftsbeziehung"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Geplante Entwicklung der Geschäftsbeziehung</label>
+              <textarea x-model="data.kp_geplante_entwicklung" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Erwartete Transaktionsart und -häufigkeit"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Geschäftsvolumen / Begünstigte (Kassageschäft)</label>
+              <textarea x-model="data.kp_geschaeftsvolumen" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Erwartetes Transaktionsvolumen, Begünstigte"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Beziehung VP zu WB / Kontrollinhaber / Bevollmächtigten</label>
+              <textarea x-model="data.kp_beziehung_dritte" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Beschreibung der Beziehung"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Verbindungen zu anderen GwG-Files</label>
+              <textarea x-model="data.kp_gwg_files" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Referenz auf verbundene GwG-Files"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Introducer / Vermittler / Referenzen</label>
+              <textarea x-model="data.kp_introducer" rows="2"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Name und Funktion des Introducers oder Vermittlers"></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Sonstige relevante Informationen</label>
+              <textarea x-model="data.kp_sonstiges" rows="3"
+                        class="w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                        placeholder="Weitere für die Compliance relevante Informationen"></textarea>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ══════════════════════════════════════════════════════
+           SEKTION 8 — DOKUMENT-CHECKLISTE (902.1)
+      ══════════════════════════════════════════════════════ -->
+      <section id="sec-checkliste" class="section-content mb-8"
+               >
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+            <h2 class="font-semibold text-brand text-sm tracking-wide">8 — Dokument-Checkliste (902.1)</h2>
+            <p class="text-gray-400 text-xs mt-0.5">Kontrolle der beizulegenden Dokumente</p>
+          </div>
+          <div class="px-5 py-5">
+            <div class="space-y-4">
+
+              <!-- VP Identdok -->
+              <div class="flex items-start gap-3 py-2 border-b border-gray-50">
+                <input type="checkbox" x-model="data.dok_vp_cb" class="accent-brand w-4 h-4 mt-0.5 flex-shrink-0" />
+                <div class="flex-1">
+                  <span class="text-sm font-medium">Identifikationsdokument Vertragspartei</span>
+                  <div class="mt-1">
+                    <input type="text" x-model="data.dok_vp_tx"
+                           class="w-full border border-gray-200 rounded px-2.5 py-1 text-xs focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="GwG-File Verweis / Bemerkung" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Eröffner Identdok -->
+              <div class="flex items-start gap-3 py-2 border-b border-gray-50">
+                <input type="checkbox" x-model="data.dok_eroeffner_cb" class="accent-brand w-4 h-4 mt-0.5 flex-shrink-0" />
+                <div class="flex-1">
+                  <span class="text-sm font-medium">Identifikationsdokument Eröffner</span>
+                  <div class="mt-1">
+                    <input type="text" x-model="data.dok_eroeffner_tx"
+                           class="w-full border border-gray-200 rounded px-2.5 py-1 text-xs focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                           placeholder="GwG-File Referenz / Bemerkung" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- WB-Feststellung -->
+              <div class="flex items-start gap-3 py-2 border-b border-gray-50">
+                <input type="checkbox" x-model="data.dok_wb_cb" class="accent-brand w-4 h-4 mt-0.5 flex-shrink-0" />
+                <div class="flex-1">
+                  <span class="text-sm font-medium">WB-Feststellung vorhanden (902.9 unterschrieben)</span>
+                </div>
+              </div>
+
+              <!-- Kundenprofil 902.5 -->
+              <div class="flex items-start gap-3 py-2 border-b border-gray-50">
+                <input type="checkbox" x-model="data.dok_kundenprofil_cb" class="accent-brand w-4 h-4 mt-0.5 flex-shrink-0" />
+                <div class="flex-1">
+                  <span class="text-sm font-medium">Kundenprofil 902.5 ausgefüllt</span>
+                </div>
+              </div>
+
+              <!-- Risikoprofil 902.4 -->
+              <div class="flex items-start gap-3 py-2">
+                <input type="checkbox" x-model="data.dok_risikoprofil_cb" class="accent-brand w-4 h-4 mt-0.5 flex-shrink-0" />
+                <div class="flex-1">
+                  <span class="text-sm font-medium">Risikoprofil 902.4 ausgefüllt und visiert</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+    </section>
+
+    <!-- ─────── EINSTELLUNGEN ─────── -->
+    <section x-show="view==='settings'" style="max-width:760px">
+      <div class="view-head"><div><h1>Einstellungen</h1><p>Screening-Quellen, Zeitplan und App</p></div></div>
+
+      <div class="card card-pad" style="margin-bottom:18px">
+        <h3>dilisense API (Ausländer-Screening)</h3>
+        <p class="sub">Kostenloser Key: 100 Prüfungen/Monat gratis. Der Schlüssel bleibt lokal auf diesem Gerät.</p>
+        <div class="field">
+          <label>API-Key</label>
+          <input class="input" type="password" x-model="settings.dilisenseApiKey" placeholder="dilisense API-Key einfügen…" />
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" @click="saveSettings()">Speichern</button>
+          <button class="btn" @click="testDilisense()" :disabled="diliBusy"><span x-text="diliBusy ? 'Teste…' : 'Verbindung testen'"></span></button>
+          <span class="small" :style="diliMsg.ok ? 'color:var(--ok)' : 'color:var(--danger)'" x-text="diliMsg.text"></span>
+          <a href="#" @click.prevent="openExt('https://dilisense.com/en')" class="small">Key erstellen →</a>
+        </div>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:18px">
+        <h3>SECO-Sanktionsliste</h3>
+        <p class="sub">Schweizer Embargo-Liste (gratis, lokal abgeglichen).</p>
+        <div class="field"><label>Download-URL</label><input class="input" type="text" x-model="settings.secoUrl" /></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" @click="saveSettings()">URL speichern</button>
+          <button class="btn btn-primary" @click="refreshSeco()" :disabled="secoBusy"><span x-text="secoBusy ? 'Lade & indexiere…' : 'Liste jetzt laden'"></span></button>
+          <span class="small muted" x-show="secoMeta.ready" x-text="'Stand: '+(secoMeta.listDate||'?')+' · '+(secoMeta.entryCount||0).toLocaleString('de-CH')+' Einträge'"></span>
+        </div>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:18px">
+        <h3>Screening-Rhythmus</h3>
+        <div class="row2">
+          <div class="field"><label>Intervall (Tage) — Personen gelten danach als fällig</label>
+            <select class="select" x-model.number="settings.screeningIntervalDays">
+              <option :value="3">Alle 3 Tage</option><option :value="7">Wöchentlich (empfohlen)</option><option :value="14">Zweiwöchentlich</option>
+            </select>
+          </div>
+          <div class="field"><label>Fuzzy-Suche (Tippfehler-/Schreibvarianten-Toleranz)</label>
+            <label class="switch" style="margin-top:8px"><span class="toggle" :class="settings.fuzzy && 'on'" @click="settings.fuzzy=!settings.fuzzy"></span><span class="small" x-text="settings.fuzzy ? 'An' : 'Aus'"></span></label>
+          </div>
+        </div>
+        <button class="btn" @click="saveSettings()">Speichern</button>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:18px">
+        <h3>Automatischer Zeitplan (Betriebssystem)</h3>
+        <p class="sub">Prüft wöchentlich automatisch — auch wenn die App geschlossen ist (<span x-text="appInfo.platform==='win32' ? 'Windows-Aufgabenplanung' : 'systemd-Timer'"></span>). Bei Treffern erscheint eine System-Benachrichtigung.</p>
+        <div class="row2">
+          <div class="field"><label>Wochentag</label>
+            <select class="select" x-model="schedDay"><option value="Mon">Montag</option><option value="Tue">Dienstag</option><option value="Wed">Mittwoch</option><option value="Thu">Donnerstag</option><option value="Fri">Freitag</option></select>
+          </div>
+          <div class="field"><label>Uhrzeit</label><input class="input" type="time" x-model="schedTime" /></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary" @click="installSchedule()" x-show="!scheduler.installed">Automatik aktivieren</button>
+          <button class="btn btn-danger" @click="removeSchedule()" x-show="scheduler.installed">Automatik deaktivieren</button>
+          <span class="badge" :class="scheduler.installed ? 'clear' : 'never'"><span class="dot"></span><span x-text="scheduler.installed ? 'Aktiv' : 'Inaktiv'"></span></span>
+        </div>
+      </div>
+
+      <div class="card card-pad">
+        <h3>App & Daten</h3>
+        <div class="kv"><span class="k">Datenbank</span><span class="mono" x-text="appInfo.dbFile || '—'"></span></div>
+        <div class="kv"><span class="k">Electron / Node</span><span class="mono" x-text="(appInfo.versions?.electron||'')+' / '+(appInfo.versions?.node||'')"></span></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="btn btn-sm" @click="openDataDir()">Datenordner öffnen</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="lib/jszip.min.js"></script>
+<script src="docx.js"></script>
+<script src="ui.js"></script>
+<script src="lib/alpine.min.js" defer></script>
+</body>
+</html>
