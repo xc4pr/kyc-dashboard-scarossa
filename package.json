@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "description": "KYC-Dashboard mit Personendatenbank und Sanktions-/PEP-Screening (SECO + dilisense) für VQF/GwG-Compliance",
   "main": "main.js",
-  "author": "Scarossa",
+  "author": "Scarossa <jopabl3000@gmail.com>",
   "license": "UNLICENSED",
   "private": true,
   "scripts": {
