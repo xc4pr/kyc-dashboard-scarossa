@@ -57,7 +57,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: '#0d1117',
     title: 'KYC-Dashboard Scarossa',
-    icon: resourcePath(path.join('build', 'icons', process.platform === 'win32' ? 'icon.ico' : 'icon.png')),
+    icon: path.join(__dirname, 'renderer', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
