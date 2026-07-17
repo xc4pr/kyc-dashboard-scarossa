@@ -15,6 +15,7 @@ Alle Daten bleiben lokal auf dem Gerät — kein Server, keine Cloud.
 | Datenhaltung | 1 Entwurf im Browser | **Datenbank aller KYC-Personen** (lokal, durchsuchbar) |
 | Screening | — | **SECO** (Schweizer Embargo) + **dilisense** (int. Sanktionen/PEP) |
 | Automatik | — | **Wöchentliches Auto-Screening** (OS-Zeitplan + beim Start) |
+| Import | — | **Drag & Drop** bestehender Formulare (.docx/.zip) → Datenbank |
 | Oberfläche | hell | **Modernes Bitcoin/Finance-Theme, Light + Dark** |
 | DOCX-Export | ✓ | ✓ (übernommen) |
 
@@ -70,6 +71,16 @@ templates/           VQF-Vorlagen (902.1/4/5/9.docx) — nicht bearbeiten
 field-map.json       Feld-Mapping der Vorlagen
 scripts/, tests/     Werkzeuge zur Pflege des Feld-Mappings (Python)
 ```
+
+### Import bestehender Formulare
+
+Ausgefüllte VQF-Formulare (`902.1/4/5/9.docx`) oder die Export-ZIPs dieses Systems
+können per **Drag & Drop** (oder „Formulare importieren") ins Fenster gezogen werden.
+`renderer/import.js` kehrt die Befüllung um: es liest die Legacy-Formularfelder an ihrer
+Ordinalposition aus, mappt sie via `field-map.json` zurück auf die Daten-Schlüssel und legt
+die Person automatisch in der Datenbank an (Name/Adresse werden wieder getrennt, Datums- und
+Radiofelder zurückgerechnet, Vertragspartei-Typ abgeleitet). Gescannte PDFs ohne
+Formularfelder werden nicht unterstützt.
 
 ### Screening-Logik
 

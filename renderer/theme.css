@@ -214,6 +214,20 @@ table.data tbody tr:hover { background: var(--surface-2); }
 .spin { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Drag & Drop Overlay */
+.drop-overlay, .importing-overlay {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: rgba(8,11,15,0.82); backdrop-filter: blur(4px);
+}
+.drop-overlay .drop-box, .importing-overlay .drop-box {
+  text-align: center; padding: 48px 60px; border-radius: 20px;
+  border: 2px dashed var(--accent); background: var(--surface); color: var(--text);
+  box-shadow: var(--shadow); max-width: 560px;
+}
+.drop-overlay .drop-box svg, .importing-overlay .drop-box svg { color: var(--accent); margin-bottom: 14px; }
+.drop-box h2 { margin: 6px 0 8px; font-size: 20px; font-weight: 700; }
+.drop-box p { margin: 0; color: var(--text-dim); font-size: 13.5px; line-height: 1.6; }
+
 hr.sep { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 .muted { color: var(--text-faint); }
 .small { font-size: 12px; }
@@ -258,6 +272,17 @@ hr.sep { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 /* Formular-Grundabstand */
 .kyc-form { padding-bottom: 20px; }
 .kyc-form .section-content { scroll-margin-top: 16px; }
-.kyc-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; position: sticky; top: 0; background: var(--bg); padding: 6px 0; z-index: 5; }
-.kyc-subnav button { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-dim); font-size: 12px; font-weight: 600; cursor: pointer; }
+.kyc-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.kyc-subnav button { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-dim); font-size: 12px; font-weight: 600; cursor: pointer; }
+.kyc-subnav button:hover { color: var(--text); border-color: var(--text-faint); }
 .kyc-subnav button.active { background: var(--accent-soft); color: var(--accent); border-color: rgba(247,147,26,0.3); }
+
+/* Dashboard-Schnellzugriff */
+.quick-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.qa { display: flex; align-items: center; gap: 13px; padding: 16px 18px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14.5px; font-weight: 700; cursor: pointer; text-align: left; transition: all .12s; }
+.qa:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.qa .qa-ic { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex-shrink: 0; }
+.qa small { display: block; font-weight: 500; font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+.qa.primary { background: linear-gradient(135deg, var(--accent), #d97e07); color: var(--accent-ink); border-color: var(--accent); }
+.qa.primary .qa-ic { background: rgba(255,255,255,0.22); color: var(--accent-ink); }
+.qa.primary small { color: var(--accent-ink); opacity: .82; }

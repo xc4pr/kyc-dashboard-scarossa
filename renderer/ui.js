@@ -38,6 +38,9 @@ document.addEventListener('alpine:init', () => {
     schedDay: 'Mon',
     schedTime: '09:00',
 
+    // Import (Drag & Drop)
+    dragOver: false, importing: false,
+
     // Busy-Flags
     screenBusy: false, secoBusy: false, diliBusy: false,
     progress: { done: 0, total: 0 },
@@ -213,6 +216,41 @@ document.addEventListener('alpine:init', () => {
     // vom Formular erwartete Helfer
     setPep(key, ja) { this.data[key + '_ja'] = ja; this.data[key + '_nein'] = !ja; },
     setRisiko(ohne) { this.data.risiko_ohne_erhoehtes = ohne; this.data.risiko_mit_erhoehtem = !ohne; },
+
+    // ── Import ausgefüllter Formulare (Drag & Drop / Dateiauswahl) ──
+    async onDrop(e) {
+      this.dragOver = false;
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length) await this.importFiles(files);
+    },
+    async onFilePick(e) {
+      const files = e.target.files;
+      if (files && files.length) await this.importFiles(files);
+      e.target.value = '';   // erneutes Wählen derselben Datei erlauben
+    },
+    async importFiles(fileList) {
+      this.importing = true;
+      try {
+        const res = await window.KYCImport.importFileList(fileList, this.fieldMap);
+        let saved = 0;
+        for (const p of res.persons) {
+          if (!window.KYC.vpName(p.data)) continue;   // ohne Namen überspringen
+          await window.api.persons.save({ kyc: p.data });
+          saved++;
+        }
+        await this.reload();
+        const parts = [];
+        if (saved) parts.push(saved + ' Person(en) importiert');
+        if (res.skipped.length) parts.push(res.skipped.length + ' Datei(en) nicht erkannt');
+        if (!saved && !res.skipped.length) parts.push('Keine verwertbaren Formulare gefunden');
+        this.showToast(saved ? 'ok' : 'warn', parts.join(' · '));
+        if (saved) this.view = 'persons';
+      } catch (err) {
+        this.showToast('danger', 'Import fehlgeschlagen: ' + err.message);
+      } finally {
+        this.importing = false;
+      }
+    },
 
     // ── Diverses ──
     openExt(url) { window.api.app.openExternal(url); },

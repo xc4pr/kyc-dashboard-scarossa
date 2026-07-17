@@ -14,7 +14,25 @@
   </script>
   <link rel="stylesheet" href="theme.css" />
 </head>
-<body x-data="app" x-cloak>
+<body x-data="app" x-cloak
+      @dragover.prevent="dragOver = true"
+      @dragenter.prevent="dragOver = true"
+      @drop.prevent="onDrop($event)">
+
+  <!-- Drag & Drop Overlay -->
+  <div class="drop-overlay" x-show="dragOver" x-cloak
+       @dragleave.prevent="dragOver = false" @drop.prevent="onDrop($event)">
+    <div class="drop-box">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      <h2>KYC-Formulare hier ablegen</h2>
+      <p>Ausgefüllte VQF-Formulare (902.1/4/5/9 als .docx) oder Export-ZIP —<br/>werden automatisch erkannt und in die Datenbank übernommen.</p>
+    </div>
+  </div>
+
+  <div class="importing-overlay" x-show="importing" x-cloak>
+    <div class="drop-box"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M21 12a9 9 0 1 1-2.6-6.4"/></svg><h2>Importiere Formulare…</h2></div>
+  </div>
+
 <div class="app">
 
   <!-- ═══════════════ TOPBAR ═══════════════ -->
@@ -83,7 +101,7 @@
 
     <!-- Toast -->
     <template x-if="toast">
-      <div class="banner" :class="toast.kind" style="position:fixed;top:72px;right:26px;z-index:50;max-width:420px;box-shadow:var(--shadow)">
+      <div class="banner" :class="toast.kind" style="position:fixed;bottom:24px;right:24px;top:auto;z-index:60;max-width:420px;box-shadow:var(--shadow)">
         <span x-text="toast.msg"></span>
       </div>
     </template>
@@ -97,9 +115,34 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="secoBusy && 'spin'"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
           SECO aktualisieren
         </button>
-        <button class="btn btn-primary" @click="screenDue()" :disabled="screenBusy">
+        <button class="btn" @click="screenDue()" :disabled="screenBusy">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="screenBusy && 'spin'"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <span x-text="screenBusy ? ('Prüfe… ' + progress.done + '/' + progress.total) : 'Fällige jetzt prüfen'"></span>
+          <span x-text="screenBusy ? ('Prüfe… ' + progress.done + '/' + progress.total) : 'Fällige prüfen'"></span>
+        </button>
+        <button class="btn btn-primary" @click="newPerson()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Neue KYC-Person
+        </button>
+      </div>
+
+      <!-- Schnellzugriff: KYC ist der Hauptzweck -->
+      <div class="quick-actions">
+        <button class="qa primary" @click="newPerson()">
+          <span class="qa-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 11v6M9 14h6"/></svg></span>
+          <span>Neue KYC-Person erfassen<small>Vertragspartei anlegen &amp; 4 VQF-Formulare erzeugen</small></span>
+        </button>
+        <button class="qa" @click="view='persons'">
+          <span class="qa-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+          <span>Personen &amp; Suche<small><span x-text="persons.length"></span> Person(en) in der Datenbank</small></span>
+        </button>
+        <button class="qa" @click="view='screening'">
+          <span class="qa-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+          <span>Screening<small><span x-text="reviewCount"></span> zu prüfen · <span x-text="dueCount"></span> fällig</small></span>
+        </button>
+        <button class="qa" @click="$refs.importInput2.click()">
+          <input type="file" x-ref="importInput2" accept=".docx,.zip" multiple style="display:none" @change="onFilePick($event)" />
+          <span class="qa-ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></span>
+          <span>Formulare importieren<small>Bestehende .docx/.zip per Klick oder Drag &amp; Drop</small></span>
         </button>
       </div>
 
@@ -148,6 +191,11 @@
       <div class="view-head">
         <div><h1>Personen</h1><p><span x-text="filteredPersons.length"></span> von <span x-text="persons.length"></span> angezeigt</p></div>
         <div class="spacer"></div>
+        <input type="file" x-ref="importInput" accept=".docx,.zip" multiple style="display:none" @change="onFilePick($event)" />
+        <button class="btn" @click="$refs.importInput.click()" title="Ausgefüllte Formulare (.docx/.zip) importieren">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Formulare importieren
+        </button>
         <button class="btn btn-primary" @click="newPerson()">+ Neue Person</button>
       </div>
 
@@ -1602,6 +1650,7 @@
 
 <script src="lib/jszip.min.js"></script>
 <script src="docx.js"></script>
+<script src="import.js"></script>
 <script src="ui.js"></script>
 <script src="lib/alpine.min.js" defer></script>
 </body>

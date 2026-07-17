@@ -10,6 +10,9 @@ const dilisense = require('./src/dilisense');
 const screening = require('./src/screening');
 const scheduler = require('./src/scheduler');
 
+// Schweizer Locale erzwingen → native Datumsfelder zeigen TT.MM.JJJJ statt mm/dd/yyyy
+app.commandLine.appendSwitch('lang', 'de-CH');
+
 const HEADLESS = process.argv.includes('--screen');
 
 // Ressourcenpfade (Dev vs. installiert)
@@ -67,6 +70,27 @@ function createWindow() {
   });
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  // Dev-Selbsttest des Import-Round-Trips (nur wenn KYC_SELFTEST gesetzt).
+  if (process.env.KYC_SELFTEST) {
+    win.webContents.on('did-finish-load', () => {
+      setTimeout(async () => {
+        try {
+          const out = await win.webContents.executeJavaScript(`(async () => {
+            const fm = await window.api.docx.fieldmap();
+            const data = window.KYC.defaultData();
+            Object.assign(data, {vp_typ:'np', vqf_mitglied_nr:'M-1234', gwg_file_nr:'2025-007', filler_name:'Test Erfasser', filler_datum:'2026-07-18', np_vorname:'Anna', np_name:'Beispiel', np_strasse:'Bahnhofstrasse 1', np_plz:'8610', np_ort:'Uster', np_staatsangehoerigkeit:'Deutschland', np_geburtsdatum:'1985-04-12', np_ausweiskopie_beigefuegt:true, lr_sitz:2, pep_ausl_ja:true, pep_ausl_nein:false});
+            const ab = await window.KYC.buildZip(data, fm);
+            const file = new File([ab], 'GwG_Test.zip', {type:'application/zip'});
+            const res = await window.KYCImport.importFileList([file], fm);
+            const d = res.persons[0] ? res.persons[0].data : null;
+            return JSON.stringify({ parsed: res.parsed, skipped: res.skipped, recovered: d && {vp_typ:d.vp_typ, np_vorname:d.np_vorname, np_name:d.np_name, np_strasse:d.np_strasse, np_plz:d.np_plz, np_ort:d.np_ort, np_staat:d.np_staatsangehoerigkeit, np_geb:d.np_geburtsdatum, ausweis:d.np_ausweiskopie_beigefuegt, lr_sitz:d.lr_sitz, pep_ausl_ja:d.pep_ausl_ja, vqf:d.vqf_mitglied_nr, gwg:d.gwg_file_nr, filler_datum:d.filler_datum} });
+          })()`);
+          console.log('SELFTEST_RESULT=' + out);
+        } catch (e) { console.log('SELFTEST_ERROR=' + e.message); }
+        app.quit();
+      }, 2500);
+    });
+  }
   // Dev-Hilfe: eigenes Fenster als PNG speichern (nur wenn KYC_SHOT gesetzt).
   if (process.env.KYC_SHOT) {
     const outDir = process.env.KYC_SHOT;

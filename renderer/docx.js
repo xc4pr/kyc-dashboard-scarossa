@@ -192,19 +192,24 @@ async function fillTemplate(templateKey, expandedData, fieldMap) {
   return await zip.generateAsync({ type: 'blob' });
 }
 
-// Export: 4 Formulare als ZIP → nativer Speichern-Dialog
-async function exportAll(data, fieldMap) {
+// 4 Formulare befüllen und als ZIP (ArrayBuffer) zurückgeben
+async function buildZip(data, fieldMap) {
   const expanded = expandRadio(data);
-  const name = (vpName(data) || 'Unbekannt').replace(/[^a-zA-Z0-9äöüÄÖÜ\- ]/g, '').trim().replace(/ /g, '_');
-  const date = data.filler_datum ? data.filler_datum.replace(/-/g, '') : new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const zipName = `GwG_${name}_${date}.zip`;
   const exportZip = new JSZip();
   for (const tpl of ['902.1', '902.4', '902.5', '902.9']) {
     const blob = await fillTemplate(tpl, expanded, fieldMap[tpl]);
     exportZip.file(`${tpl}.docx`, blob);
   }
-  const content = await exportZip.generateAsync({ type: 'arraybuffer' });
+  return exportZip.generateAsync({ type: 'arraybuffer' });
+}
+
+// Export: 4 Formulare als ZIP → nativer Speichern-Dialog
+async function exportAll(data, fieldMap) {
+  const name = (vpName(data) || 'Unbekannt').replace(/[^a-zA-Z0-9äöüÄÖÜ\- ]/g, '').trim().replace(/ /g, '_');
+  const date = data.filler_datum ? data.filler_datum.replace(/-/g, '') : new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const zipName = `GwG_${name}_${date}.zip`;
+  const content = await buildZip(data, fieldMap);
   return window.api.docx.save(zipName, content);
 }
 
-window.KYC = { defaultData, expandRadio, vpName, formatDate, exportAll };
+window.KYC = { defaultData, expandRadio, vpName, formatDate, exportAll, buildZip };
