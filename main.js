@@ -9,6 +9,7 @@ const seco = require('./src/seco');
 const dilisense = require('./src/dilisense');
 const screening = require('./src/screening');
 const scheduler = require('./src/scheduler');
+const aml = require('./src/aml');
 
 // Schweizer Locale erzwingen → native Datumsfelder zeigen TT.MM.JJJJ statt mm/dd/yyyy
 app.commandLine.appendSwitch('lang', 'de-CH');
@@ -25,6 +26,17 @@ function initData() {
   const dataDir = app.getPath('userData');
   store.init(dataDir);
   seco.init(dataDir);
+}
+
+// HTML → PDF (A4 quer) über ein unsichtbares Fenster
+async function htmlToPdf(html) {
+  const w = new BrowserWindow({ show: false, webPreferences: { offscreen: false } });
+  try {
+    await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    return await w.webContents.printToPDF({ landscape: true, printBackground: true, pageSize: 'A4' });
+  } finally {
+    w.destroy();
+  }
 }
 
 // ─── Headless-Screening (vom OS-Zeitplan gestartet) ───────────────────────────
@@ -70,6 +82,20 @@ function createWindow() {
   });
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  // Dev: AML-Ansicht mit Vorschau erfassen (nur wenn KYC_AMLSHOT gesetzt).
+  if (process.env.KYC_AMLSHOT) {
+    win.webContents.on('did-finish-load', () => {
+      setTimeout(async () => {
+        try {
+          await win.webContents.executeJavaScript(`(async()=>{const el=document.querySelector('[x-data]');const d=(window.Alpine&&Alpine.$data)?Alpine.$data(el):el._x_dataStack[0];d.amlResult=await window.api.aml.analyze({path:${JSON.stringify(process.env.AML_CSV)},pruefer:'AML Revisions AG'});d.view='aml';return 'ok';})()`);
+          await new Promise(r => setTimeout(r, 1400));
+          const img = await win.webContents.capturePage();
+          fs.writeFileSync(process.env.KYC_AMLSHOT, img.toPNG());
+        } catch (e) { console.log('AMLSHOT_ERR=' + e.message); }
+        app.quit();
+      }, 2600);
+    });
+  }
   // Dev-Selbsttest des Import-Round-Trips (nur wenn KYC_SELFTEST gesetzt).
   if (process.env.KYC_SELFTEST) {
     win.webContents.on('did-finish-load', () => {
@@ -191,6 +217,31 @@ function registerIpc() {
     return { saved: true, path: filePath };
   });
 
+  // AML-/Kassageschäft-Auswertung
+  ipcMain.handle('aml:analyze', (_e, payload) => {
+    const p = payload || {};
+    const text = p.text != null ? p.text : fs.readFileSync(p.path, 'utf-8');
+    const records = aml.parseCsv(text);
+    const agg = aml.analyze(records);
+    const html = aml.renderReport(agg, { pruefer: p.pruefer });
+    return { agg, html, records: records.length, sourceFile: p.name || (p.path ? path.basename(p.path) : '') };
+  });
+  ipcMain.handle('aml:render', (_e, agg, meta) => aml.renderReport(agg, meta || {}));
+  ipcMain.handle('aml:exportPdf', async (_e, html, defaultName) => {
+    const pdf = await htmlToPdf(html);
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'AML-Bericht als PDF speichern',
+      defaultPath: defaultName || 'AML_Revision_Bericht.pdf',
+      filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    });
+    if (canceled || !filePath) return { saved: false };
+    fs.writeFileSync(filePath, pdf);
+    return { saved: true, path: filePath };
+  });
+  ipcMain.handle('aml:list', () => store.listAmlReports());
+  ipcMain.handle('aml:save', (_e, report) => store.saveAmlReport(report));
+  ipcMain.handle('aml:delete', (_e, id) => store.deleteAmlReport(id));
+
   // App-Infos
   ipcMain.handle('app:info', () => ({
     platform: process.platform,
@@ -204,7 +255,20 @@ function registerIpc() {
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────────
-if (HEADLESS) {
+if (process.argv.includes('--amltest')) {
+  // Dev: AML-CSV → PDF headless (testet printToPDF-Pipeline)
+  app.whenReady().then(async () => {
+    try {
+      const text = fs.readFileSync(process.env.AML_CSV, 'utf-8');
+      const agg = aml.analyze(aml.parseCsv(text));
+      const html = aml.renderReport(agg, { pruefer: 'AML Revisions AG' });
+      const pdf = await htmlToPdf(html);
+      fs.writeFileSync(process.env.AML_OUT, pdf);
+      console.log('AMLTEST_OK bytes=' + pdf.length + ' completed=' + agg.kpis.completed + ' vol=' + agg.kpis.totalVolume);
+    } catch (e) { console.log('AMLTEST_ERR=' + e.message); }
+    app.quit();
+  });
+} else if (HEADLESS) {
   app.whenReady().then(runHeadlessScreening).catch(err => {
     console.error(err);
     app.quit();

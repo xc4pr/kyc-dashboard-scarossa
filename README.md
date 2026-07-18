@@ -16,6 +16,7 @@ Alle Daten bleiben lokal auf dem Gerät — kein Server, keine Cloud.
 | Screening | — | **SECO** (Schweizer Embargo) + **dilisense** (int. Sanktionen/PEP) |
 | Automatik | — | **Wöchentliches Auto-Screening** (OS-Zeitplan + beim Start) |
 | Import | — | **Drag & Drop** bestehender Formulare (.docx/.zip) → Datenbank |
+| AML-Report | — | **Bitcoin-ATM-Auswertung**: CSV → Revisionsbericht (PDF) + Jahresvergleich |
 | Oberfläche | hell | **Modernes Bitcoin/Finance-Theme, Light + Dark** |
 | DOCX-Export | ✓ | ✓ (übernommen) |
 
@@ -81,6 +82,21 @@ Ordinalposition aus, mappt sie via `field-map.json` zurück auf die Daten-Schlü
 die Person automatisch in der Datenbank an (Name/Adresse werden wieder getrennt, Datums- und
 Radiofelder zurückgerechnet, Vertragspartei-Typ abgeleitet). Gescannte PDFs ohne
 Formularfelder werden nicht unterstützt.
+
+### AML-Report (Bitcoin-ATM-Kassageschäfte)
+
+Für die jährliche VQF/AML-Revision: den Transaktions-CSV-Export des ATM-Systems
+(Lamassu/GeneralBytes) per Drag & Drop oder Dateiauswahl in die Ansicht „AML-Report"
+geben. `src/aml.js` wertet lokal aus und erzeugt den Revisionsbericht:
+
+- KPIs (abgeschlossene Tx, eindeutige Kunden, Gesamtvolumen, Abbrüche)
+- **GwG-Schwellenwert-Kategorisierung** (Grenze CHF 1'000): Kunden mit mind. 1 Tx > 1'000
+  (identifikationspflichtig) vs. ausschliesslich ≤ 1'000
+- Betragskategorien-Verteilung, monatliche CashIn/CashOut-Übersicht, Auswertung pro ATM
+
+Der Bericht wird als **PDF-Vorschau** angezeigt und via `printToPDF` (A4 quer) exportiert.
+Jede Auswertung kann in der Datenbank gespeichert werden → **Jahresvergleich** (Δ Vorjahr).
+Methodik: abgeschlossen = Status `Sent`/`Success`, Kunde = `customerId`, Betrag = `fiat`.
 
 ### Screening-Logik
 

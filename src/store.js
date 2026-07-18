@@ -32,6 +32,7 @@ function emptyDb() {
       theme: 'dark'                     // 'dark' | 'light'
     },
     seco: { lastDownload: null, listDate: null, entryCount: 0 },
+    amlReports: [],   // jährliche AML-/Kassageschäft-Auswertungen (für Jahresvergleich)
     meta: { createdAt: new Date().toISOString() }
   };
 }
@@ -45,6 +46,7 @@ function load() {
       cache.settings = Object.assign(def.settings, cache.settings || {});
       cache.seco = Object.assign(def.seco, cache.seco || {});
       if (!Array.isArray(cache.persons)) cache.persons = [];
+      if (!Array.isArray(cache.amlReports)) cache.amlReports = [];
     } else {
       cache = emptyDb();
       persist();
@@ -204,11 +206,38 @@ function setSeco(patch) {
   return getSeco();
 }
 
+// ─── AML-Auswertungen (Kassageschäfte / Bitcoin-ATM) ──────────────────────────
+
+function listAmlReports() { return (cache.amlReports || []).slice(); }
+
+function saveAmlReport(report) {
+  const now = new Date().toISOString();
+  cache.amlReports = cache.amlReports || [];
+  // Label = Jahr des Periodenendes (z. B. "2026"), sonst laufende Nummer
+  const label = report.label || (report.periodTo ? report.periodTo.slice(0, 4) : String(cache.amlReports.length + 1));
+  const rec = Object.assign({
+    id: 'aml_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    savedAt: now, label
+  }, report);
+  cache.amlReports.unshift(rec);
+  persist();
+  return rec;
+}
+
+function deleteAmlReport(id) {
+  const idx = (cache.amlReports || []).findIndex(r => r.id === id);
+  if (idx === -1) return false;
+  cache.amlReports.splice(idx, 1);
+  persist();
+  return true;
+}
+
 function dbFilePath() { return DB_FILE; }
 function dataDir() { return DATA_DIR; }
 
 module.exports = {
   init, listPersons, getPerson, upsertPerson, deletePerson,
   recordScreening, duePersons, deriveIdentity, guessForeign,
-  getSettings, setSettings, getSeco, setSeco, dbFilePath, dataDir
+  getSettings, setSettings, getSeco, setSeco, dbFilePath, dataDir,
+  listAmlReports, saveAmlReport, deleteAmlReport
 };

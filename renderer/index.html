@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self' data:; connect-src 'self';" />
   <title>KYC-Dashboard Scarossa</title>
   <script src="lib/tailwind.js"></script>
   <script>
@@ -24,8 +24,8 @@
        @dragleave.prevent="dragOver = false" @drop.prevent="onDrop($event)">
     <div class="drop-box">
       <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-      <h2>KYC-Formulare hier ablegen</h2>
-      <p>Ausgefüllte VQF-Formulare (902.1/4/5/9 als .docx) oder Export-ZIP —<br/>werden automatisch erkannt und in die Datenbank übernommen.</p>
+      <h2>Datei hier ablegen</h2>
+      <p><b>KYC-Formular</b> (.docx / .zip) → wird erkannt und in die Datenbank übernommen<br/><b>AML-Transaktions-CSV</b> (Bitcoin-ATM) → erzeugt den Revisionsbericht</p>
     </div>
   </div>
 
@@ -80,6 +80,10 @@
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
       Screening
       <span class="badge-count" x-show="reviewCount" x-text="reviewCount"></span>
+    </button>
+    <button class="nav-item" :class="view==='aml' && 'active'" @click="view='aml'; amlLoadList()">
+      <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="4" width="3" height="14"/></svg></span>
+      AML-Report
     </button>
     <button class="nav-item" :class="view==='form' && 'active'" @click="newPerson()">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 11h2"/></svg></span>
@@ -1572,6 +1576,85 @@
       </section>
 
 
+    </section>
+
+    <!-- ─────── AML-REPORT (Kassageschäfte / Bitcoin-ATM) ─────── -->
+    <section x-show="view==='aml'">
+      <div class="view-head">
+        <div><h1>AML-Auswertung</h1><p>Jährliche VQF-Revision der Bitcoin-ATM-Kassageschäfte</p></div>
+        <div class="spacer"></div>
+        <input type="file" x-ref="amlInput" accept=".csv" style="display:none" @change="onAmlPick($event)" />
+        <template x-if="amlResult">
+          <div style="display:flex;gap:8px">
+            <button class="btn" @click="$refs.amlInput.click()">Andere CSV</button>
+            <button class="btn" @click="amlSaveReport()">In Datenbank speichern</button>
+            <button class="btn btn-primary" @click="amlExportPdf()" :disabled="amlBusy"><span x-text="amlBusy ? 'Erzeuge PDF…' : '↓ Als PDF exportieren'"></span></button>
+          </div>
+        </template>
+      </div>
+
+      <!-- Prüfer + Upload -->
+      <div class="card card-pad" style="margin-bottom:18px" x-show="!amlResult">
+        <h3>Transaktions-CSV auswählen</h3>
+        <p class="sub">Export aus dem ATM-System (Lamassu/GeneralBytes). Wird lokal ausgewertet — nichts wird hochgeladen.</p>
+        <div class="row2" style="margin-bottom:12px">
+          <div class="field"><label>Prüfer / Revisionsstelle (für den Bericht)</label><input class="input" type="text" x-model="amlPruefer" placeholder="z. B. AML Revisions AG" /></div>
+        </div>
+        <div class="aml-drop" @click="$refs.amlInput.click()">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          <div><b>CSV wählen</b> oder per Drag &amp; Drop ins Fenster ziehen</div>
+          <div class="small muted" x-show="amlBusy">Analysiere…</div>
+        </div>
+      </div>
+
+      <!-- Ergebnis: KPIs + Vorschau -->
+      <template x-if="amlResult">
+        <div>
+          <div class="banner ok" style="margin-bottom:16px">
+            ✓ <span x-text="amlResult.records"></span> Transaktionen ausgewertet · Zeitraum <b x-text="fmtD(amlResult.agg.periodFrom)"></b> – <b x-text="fmtD(amlResult.agg.periodTo)"></b> · Quelle: <span x-text="amlResult.sourceFile || '—'"></span>
+          </div>
+          <div class="tiles">
+            <div class="tile accent"><div class="k">Transaktionen</div><div class="v" x-text="amlResult.agg.kpis.completed"></div><div class="foot" x-text="amlResult.agg.kpis.cancelled + ' abgebrochen'"></div></div>
+            <div class="tile"><div class="k">Eindeutige Kunden</div><div class="v" x-text="amlResult.agg.kpis.uniqueCustomers"></div><div class="foot" x-text="amlResult.agg.cashIn.count + ' Ein / ' + amlResult.agg.cashOut.count + ' Aus'"></div></div>
+            <div class="tile ok"><div class="k">Gesamtvolumen</div><div class="v" x-text="chf(amlResult.agg.kpis.totalVolume)"></div><div class="foot">CHF</div></div>
+            <div class="tile danger"><div class="k">GwG-pflichtig</div><div class="v" x-text="amlResult.agg.gwg.pflichtig"></div><div class="foot" x-text="amlResult.agg.gwg.frei + ' ohne Pflicht'"></div></div>
+          </div>
+          <div class="card" style="overflow:hidden">
+            <div class="card-pad" style="border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+              <h3 style="margin:0">Berichtsvorschau (PDF-Layout)</h3>
+              <span class="spacer" style="flex:1"></span>
+              <span class="small muted">A4 quer · so wird es exportiert</span>
+            </div>
+            <iframe class="aml-preview" :srcdoc="amlResult.html" sandbox="allow-same-origin"></iframe>
+          </div>
+        </div>
+      </template>
+
+      <!-- Gespeicherte Auswertungen / Jahresvergleich -->
+      <div style="margin-top:22px" x-show="amlReports.length">
+        <h3 style="font-size:15px;margin-bottom:10px">Gespeicherte Auswertungen (Jahresvergleich)</h3>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Periode</th><th>Transaktionen</th><th>Kunden</th><th>Gesamtvolumen (CHF)</th><th>Δ Vorjahr</th><th>GwG-pflichtig</th><th></th></tr></thead>
+            <tbody>
+              <template x-for="(r, i) in amlReportsSorted" :key="r.id">
+                <tr>
+                  <td><div class="row-name" x-text="r.label"></div><div class="row-sub" x-text="fmtD(r.periodFrom)+' – '+fmtD(r.periodTo)"></div></td>
+                  <td x-text="r.agg.kpis.completed"></td>
+                  <td x-text="r.agg.kpis.uniqueCustomers"></td>
+                  <td x-text="chf(r.agg.kpis.totalVolume)"></td>
+                  <td x-html="deltaBadge(i)"></td>
+                  <td x-text="r.agg.gwg.pflichtig"></td>
+                  <td><div class="row-actions">
+                    <button class="btn btn-sm" @click="amlOpenSaved(r)">Öffnen</button>
+                    <button class="btn btn-sm btn-danger" @click="amlDelete(r)">✕</button>
+                  </div></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <!-- ─────── EINSTELLUNGEN ─────── -->

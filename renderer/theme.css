@@ -228,6 +228,12 @@ table.data tbody tr:hover { background: var(--surface-2); }
 .drop-box h2 { margin: 6px 0 8px; font-size: 20px; font-weight: 700; }
 .drop-box p { margin: 0; color: var(--text-dim); font-size: 13.5px; line-height: 1.6; }
 
+/* AML: Dropzone + PDF-Vorschau */
+.aml-drop { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 34px; border: 2px dashed var(--border); border-radius: 12px; color: var(--text-dim); cursor: pointer; transition: all .12s; text-align: center; }
+.aml-drop:hover { border-color: var(--accent); color: var(--text); }
+.aml-drop svg { color: var(--accent); }
+.aml-preview { width: 100%; height: 620px; border: none; background: #fff; display: block; }
+
 hr.sep { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 .muted { color: var(--text-faint); }
 .small { font-size: 12px; }

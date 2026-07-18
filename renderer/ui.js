@@ -41,6 +41,9 @@ document.addEventListener('alpine:init', () => {
     // Import (Drag & Drop)
     dragOver: false, importing: false,
 
+    // AML-Auswertung
+    amlResult: null, amlBusy: false, amlPruefer: '', amlReports: [],
+
     // Busy-Flags
     screenBusy: false, secoBusy: false, diliBusy: false,
     progress: { done: 0, total: 0 },
@@ -56,6 +59,7 @@ document.addEventListener('alpine:init', () => {
       this.secoMeta = await window.api.seco.meta();
       this.scheduler = await window.api.scheduler.status();
       this.appInfo = await window.api.app.info();
+      this.amlReports = await window.api.aml.list();
       window.api.screening.onProgress(d => { this.progress = d; });
 
       // Auto-Screening beim Start: nur fällige Personen (throttelt sich selbst
@@ -220,8 +224,13 @@ document.addEventListener('alpine:init', () => {
     // ── Import ausgefüllter Formulare (Drag & Drop / Dateiauswahl) ──
     async onDrop(e) {
       this.dragOver = false;
-      const files = e.dataTransfer && e.dataTransfer.files;
-      if (files && files.length) await this.importFiles(files);
+      const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+      if (!files.length) return;
+      const csv = files.filter(f => /\.csv$/i.test(f.name));
+      const kyc = files.filter(f => /\.(docx|zip)$/i.test(f.name));
+      if (csv.length) await this.amlAnalyzeFile(csv[0]);
+      if (kyc.length) await this.importFiles(kyc);
+      if (!csv.length && !kyc.length) this.showToast('warn', 'Nicht unterstützt. KYC: .docx/.zip · AML: .csv');
     },
     async onFilePick(e) {
       const files = e.target.files;
@@ -251,6 +260,78 @@ document.addEventListener('alpine:init', () => {
         this.importing = false;
       }
     },
+
+    // ── AML-Auswertung (Kassageschäfte) ──
+    async onAmlPick(e) {
+      const f = e.target.files && e.target.files[0];
+      if (f) await this.amlAnalyzeFile(f);
+      e.target.value = '';
+    },
+    async amlAnalyzeFile(file) {
+      this.amlBusy = true;
+      try {
+        const payload = { name: file.name, pruefer: this.amlPruefer };
+        if (file.path) payload.path = file.path; else payload.text = await file.text();
+        this.amlResult = await window.api.aml.analyze(payload);
+        this.view = 'aml';
+        await this.amlLoadList();
+      } catch (err) {
+        this.showToast('danger', 'AML-Analyse fehlgeschlagen: ' + err.message);
+      } finally { this.amlBusy = false; }
+    },
+    async amlExportPdf() {
+      if (!this.amlResult) return;
+      this.amlBusy = true;
+      try {
+        const jahr = (this.amlResult.agg.periodTo || '').slice(0, 4);
+        const r = await window.api.aml.exportPdf(this.amlResult.html, 'AML_Revision_Bericht_' + jahr + '.pdf');
+        if (r.saved) this.showToast('ok', 'PDF gespeichert: ' + r.path);
+      } catch (e) { this.showToast('danger', 'PDF-Export fehlgeschlagen: ' + e.message); }
+      finally { this.amlBusy = false; }
+    },
+    async amlSaveReport() {
+      if (!this.amlResult) return;
+      const a = this.amlResult.agg;
+      await window.api.aml.save({
+        label: (a.periodTo || '').slice(0, 4), periodFrom: a.periodFrom, periodTo: a.periodTo,
+        pruefer: this.amlPruefer, sourceFile: this.amlResult.sourceFile, agg: a
+      });
+      await this.amlLoadList();
+      this.showToast('ok', 'Auswertung in Datenbank gespeichert.');
+    },
+    async amlLoadList() { this.amlReports = await window.api.aml.list(); },
+    async amlOpenSaved(r) {
+      this.amlBusy = true;
+      try {
+        const html = await window.api.aml.render(r.agg, { pruefer: r.pruefer });
+        this.amlPruefer = r.pruefer || '';
+        this.amlResult = { agg: r.agg, html, records: r.agg.kpis.completed + r.agg.kpis.cancelled, sourceFile: r.sourceFile };
+      } finally { this.amlBusy = false; }
+    },
+    async amlDelete(r) {
+      if (!confirm('Auswertung „' + r.label + '" löschen?')) return;
+      await window.api.aml.remove(r.id);
+      await this.amlLoadList();
+      this.showToast('ok', 'Auswertung gelöscht.');
+    },
+    get amlReportsSorted() { return this.amlReports.slice().sort((a, b) => (b.periodTo || '').localeCompare(a.periodTo || '')); },
+    deltaBadge(i) {
+      const list = this.amlReportsSorted;
+      const cur = list[i], prev = list[i + 1];
+      if (!prev) return '<span class="muted small">—</span>';
+      const d = cur.agg.kpis.totalVolume - prev.agg.kpis.totalVolume;
+      const pct = prev.agg.kpis.totalVolume ? (d / prev.agg.kpis.totalVolume * 100) : 0;
+      const up = d >= 0;
+      const col = up ? 'var(--ok)' : 'var(--danger)';
+      return '<span style="color:' + col + ';font-weight:600">' + (up ? '▲ +' : '▼ ') + this.chf(d) + ' (' + (up ? '+' : '') + pct.toFixed(1) + '%)</span>';
+    },
+    chf(n) {
+      const s = (Math.round((n || 0) * 100) / 100).toFixed(2);
+      const [int, dec] = s.split('.');
+      const sign = int.startsWith('-') ? '-' : '';
+      return sign + int.replace('-', '').replace(/\B(?=(\d{3})+(?!\d))/g, "'") + '.' + dec;
+    },
+    fmtD(iso) { if (!iso) return '—'; const d = iso.slice(0, 10).split('-'); return d.length === 3 ? `${d[2]}.${d[1]}.${d[0]}` : iso; },
 
     // ── Diverses ──
     openExt(url) { window.api.app.openExternal(url); },

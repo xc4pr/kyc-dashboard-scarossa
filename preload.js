@@ -36,6 +36,14 @@ contextBridge.exposeInMainWorld('api', {
     fieldmap: () => ipcRenderer.invoke('docx:fieldmap'),
     save: (name, ab) => ipcRenderer.invoke('docx:save', name, ab)
   },
+  aml: {
+    analyze: (payload) => ipcRenderer.invoke('aml:analyze', payload),
+    render: (agg, meta) => ipcRenderer.invoke('aml:render', agg, meta),
+    exportPdf: (html, name) => ipcRenderer.invoke('aml:exportPdf', html, name),
+    list: () => ipcRenderer.invoke('aml:list'),
+    save: (report) => ipcRenderer.invoke('aml:save', report),
+    remove: (id) => ipcRenderer.invoke('aml:delete', id)
+  },
   app: {
     info: () => ipcRenderer.invoke('app:info'),
     openDataDir: () => ipcRenderer.invoke('app:openDataDir'),
