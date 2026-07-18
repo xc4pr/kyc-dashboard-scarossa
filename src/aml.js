@@ -1,8 +1,11 @@
 'use strict';
 
 // ─── AML-/VQF-Auswertung Bitcoin-ATM (Kassageschäfte) ─────────────────────────
-// Liest den Transaktions-CSV-Export (Lamassu/GeneralBytes), berechnet die
-// jährlichen Revisionskennzahlen und erzeugt den Revisionsbericht (HTML → PDF).
+// Liest den Transaktions-CSV-Export im **Lamassu-Schema** (Spalten txClass, fiat,
+// status='Sent'/'Success', customerId), berechnet die jährlichen Revisions-
+// kennzahlen und erzeugt den Revisionsbericht (HTML → PDF). Andere Exporte
+// (z. B. GeneralBytes mit Semikolon) werden erkannt und mit klarer Meldung
+// abgewiesen (analyze → null).
 // Methodik (validiert gegen Bestandsbericht 2026):
 //   - Abgeschlossen = Status "Sent" (CashIn) oder "Success" (CashOut)
 //   - Kunde = customerId; GwG-pflichtig, wenn mind. 1 Transaktion > CHF 1'000.00
@@ -53,7 +56,13 @@ function deDate(iso) {
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 // ── Analyse ───────────────────────────────────────────────────────────────────
+// Rückgabe null, wenn die CSV nicht dem erwarteten Lamassu-Schema entspricht
+// (z. B. GeneralBytes mit Semikolon/anderen Spalten) → klare Fehlermeldung im UI.
 function analyze(records) {
+  if (!records.length) return null;
+  const cols = records[0];
+  if (!('fiat' in cols) || !('txClass' in cols) || !('status' in cols)) return null;
+
   const fiat = r => parseFloat(r.fiat || '0') || 0;
   const isDone = r => r.status === 'Sent' || r.status === 'Success';
 
@@ -77,9 +86,15 @@ function analyze(records) {
   }
   const uniqueCustomers = Object.keys(byCust).length;
   let gwgPflichtig = 0, gwgFrei = 0;
-  for (const arr of Object.values(byCust)) {
-    if (Math.max.apply(null, arr) > GWG_THRESHOLD) gwgPflichtig++; else gwgFrei++;
+  const gwgList = [];   // anonymisierte Liste der identifikationspflichtigen Kunden
+  for (const [cid, arr] of Object.entries(byCust)) {
+    const max = Math.max.apply(null, arr);
+    if (max > GWG_THRESHOLD) {
+      gwgPflichtig++;
+      gwgList.push({ ref: cid.slice(0, 8), txCount: arr.length, maxTx: max, volume: arr.reduce((a, b) => a + b, 0) });
+    } else gwgFrei++;
   }
+  gwgList.sort((a, b) => b.volume - a.volume);
   const exactThreshold = done.filter(r => fiat(r) === GWG_THRESHOLD).length;
 
   // CashIn / CashOut
@@ -138,6 +153,7 @@ function analyze(records) {
     threshold: GWG_THRESHOLD,
     kpis: { completed: done.length, cancelled, uniqueCustomers, totalVolume },
     gwg: { pflichtig: gwgPflichtig, frei: gwgFrei, exactThreshold },
+    gwgList,
     cashIn: { count: cashIn.length, sum: sum(cashIn) },
     cashOut: { count: cashOut.length, sum: sum(cashOut) },
     buckets: buckets.map(b => ({ label: b.label, count: b.count, volume: b.volume })),
@@ -222,6 +238,12 @@ function renderReport(a, meta) {
     </td>
   </tr></table>
   <p class="footnote">Basis: abgeschlossene Transaktionen (Status: Sent / Success). Ein Kunde erscheint nur in einer Kategorie.</p>
+
+  ${(a.gwgList && a.gwgList.length) ? `
+  <h3>Identifikationspflichtige Kunden (anonymisiert, Referenz = Kürzel der Kunden-ID)</h3>
+  <table width="70%"><tr><th class="l">Kunden-Ref.</th><th>Anzahl Tx</th><th>Höchste Einzel-Tx (CHF)</th><th>Volumen (CHF)</th></tr>
+  ${a.gwgList.map((c, i) => `<tr bgcolor="${i % 2 ? '#ffffff' : '#f4f7fb'}"><td style="padding:5px 12px;border-bottom:1px solid #dde5f0;font-family:monospace;">${esc(c.ref)}…</td><td align="right" style="padding:5px 12px;border-bottom:1px solid #dde5f0;">${c.txCount}</td><td align="right" style="padding:5px 12px;border-bottom:1px solid #dde5f0;">${chf(c.maxTx)}</td><td align="right" style="padding:5px 12px;border-bottom:1px solid #dde5f0;">${chf(c.volume)}</td></tr>`).join('')}
+  </table>` : ''}
 
   <div class="page-break"></div>
 

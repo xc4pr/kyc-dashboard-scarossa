@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('api', {
     get: (id) => ipcRenderer.invoke('persons:get', id),
     save: (p) => ipcRenderer.invoke('persons:save', p),
     remove: (id) => ipcRenderer.invoke('persons:delete', id),
+    archived: () => ipcRenderer.invoke('persons:archived'),
     due: () => ipcRenderer.invoke('persons:due')
   },
   settings: {
@@ -19,11 +20,14 @@ contextBridge.exposeInMainWorld('api', {
     refresh: () => ipcRenderer.invoke('seco:refresh')
   },
   dilisense: {
-    test: (key) => ipcRenderer.invoke('dilisense:test', key)
+    test: (key) => ipcRenderer.invoke('dilisense:test', key),
+    usage: () => ipcRenderer.invoke('dilisense:usage')
   },
   screening: {
     person: (id) => ipcRenderer.invoke('screening:person', id),
     due: () => ipcRenderer.invoke('screening:due'),
+    clearHits: (id, hitKeys) => ipcRenderer.invoke('screening:clearHits', id, hitKeys),
+    proofPdf: (id) => ipcRenderer.invoke('screening:proofPdf', id),
     onProgress: (cb) => ipcRenderer.on('screening:progress', (_e, d) => cb(d))
   },
   scheduler: {
@@ -39,7 +43,7 @@ contextBridge.exposeInMainWorld('api', {
   aml: {
     analyze: (payload) => ipcRenderer.invoke('aml:analyze', payload),
     render: (agg, meta) => ipcRenderer.invoke('aml:render', agg, meta),
-    exportPdf: (html, name) => ipcRenderer.invoke('aml:exportPdf', html, name),
+    exportPdf: (agg, meta, name) => ipcRenderer.invoke('aml:exportPdf', agg, meta, name),
     list: () => ipcRenderer.invoke('aml:list'),
     save: (report) => ipcRenderer.invoke('aml:save', report),
     remove: (id) => ipcRenderer.invoke('aml:delete', id)

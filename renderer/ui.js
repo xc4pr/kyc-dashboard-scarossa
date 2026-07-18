@@ -44,6 +44,9 @@ document.addEventListener('alpine:init', () => {
     // AML-Auswertung
     amlResult: null, amlBusy: false, amlPruefer: '', amlReports: [],
 
+    // Dirty-Check + dilisense-Kontingent
+    _formSnap: '', dilisenseUsage: { month: '', count: 0 },
+
     // Busy-Flags
     screenBusy: false, secoBusy: false, diliBusy: false,
     progress: { done: 0, total: 0 },
@@ -60,7 +63,12 @@ document.addEventListener('alpine:init', () => {
       this.scheduler = await window.api.scheduler.status();
       this.appInfo = await window.api.app.info();
       this.amlReports = await window.api.aml.list();
+      this.dilisenseUsage = await window.api.dilisense.usage();
       window.api.screening.onProgress(d => { this.progress = d; });
+      // App-Schliessen bei ungespeichertem Formular abfangen
+      window.addEventListener('beforeunload', (e) => {
+        if (this.isFormDirty()) { e.preventDefault(); e.returnValue = ''; }
+      });
 
       // Auto-Screening beim Start: nur fällige Personen (throttelt sich selbst
       // über das Intervall). Nur wenn SECO-Liste geladen ist.
@@ -71,6 +79,7 @@ document.addEventListener('alpine:init', () => {
 
     async reload() {
       this.persons = await window.api.persons.list();
+      try { this.dilisenseUsage = await window.api.dilisense.usage(); } catch (_) {}
     },
 
     // ── Computed ──
@@ -80,7 +89,9 @@ document.addEventListener('alpine:init', () => {
       if (!q) return list;
       return list.filter(p => {
         const id = p.identity || {};
-        return [id.displayName, id.nationality, id.country, id.dob].filter(Boolean).join(' ').toLowerCase().includes(q);
+        const k = p.kyc || {};
+        return [id.displayName, id.nationality, id.country, id.dob, k.gwg_file_nr, k.vqf_mitglied_nr]
+          .filter(Boolean).join(' ').toLowerCase().includes(q);
       });
     },
     get foreignCount() { return this.persons.filter(p => p.foreign).length; },
@@ -109,6 +120,7 @@ document.addEventListener('alpine:init', () => {
       this.currentPersonId = null;
       this.activeSection = 'stammdaten';
       this.exportError = null;
+      this._formSnap = this.snapForm();
       this.view = 'form';
     },
     openPerson(id) {
@@ -119,6 +131,7 @@ document.addEventListener('alpine:init', () => {
       this.currentPersonId = p.id;
       this.activeSection = 'stammdaten';
       this.exportError = null;
+      this._formSnap = this.snapForm();
       this.view = 'form';
     },
     cancelForm() { this.view = this.currentPersonId ? 'persons' : 'dashboard'; },
@@ -128,20 +141,30 @@ document.addEventListener('alpine:init', () => {
       if (!this.KYCname()) { this.showToast('warn', 'Bitte mindestens Name oder Firma der Vertragspartei erfassen.'); return; }
       const rec = await window.api.persons.save({ id: this.currentPersonId, kyc: this.data, foreign: this.foreign });
       this.currentPersonId = rec.id;
+      this._formSnap = this.snapForm();   // gespeichert → nicht mehr dirty
       await this.reload();
       this.showToast('ok', 'Person gespeichert: ' + (rec.identity.displayName || ''));
       this.view = 'persons';
     },
     async deletePerson(p) {
-      if (!confirm('Person „' + (p.identity.displayName || '') + '" wirklich löschen?')) return;
+      if (!confirm('Person „' + (p.identity.displayName || '') + '" archivieren?\n\nSie wird aus der aktiven Liste entfernt, aber wegen der GwG-Aufbewahrungspflicht (10 Jahre) im Archiv aufbewahrt.')) return;
       await window.api.persons.remove(p.id);
       await this.reload();
-      this.showToast('ok', 'Person gelöscht.');
+      this.showToast('ok', 'Person archiviert (aufbewahrt).');
     },
     async clearReview(p) {
-      await window.api.persons.save({ id: p.id, kyc: p.kyc, foreign: p.foreign, screeningStatus: 'clear', screeningSummary: 'Manuell als geprüft/ok markiert' });
+      // Aktuelle Treffer als False-Positive merken → beim nächsten Lauf nicht neu flaggen
+      const last = (p.screenings || [])[0];
+      const keys = last && last.hits ? last.hits.map(h => h.key).filter(Boolean) : [];
+      await window.api.screening.clearHits(p.id, keys);
       await this.reload();
-      this.showToast('ok', 'Als geprüft markiert.');
+      this.showToast('ok', 'Als geprüft markiert — dieser Treffer wird nicht erneut gemeldet.');
+    },
+    async screeningProof(p) {
+      try {
+        const r = await window.api.screening.proofPdf(p.id);
+        if (r && r.saved) this.showToast('ok', 'Nachweis gespeichert: ' + r.path);
+      } catch (e) { this.showToast('danger', 'Nachweis fehlgeschlagen: ' + e.message); }
     },
 
     // ── Screening ──
@@ -191,6 +214,7 @@ document.addEventListener('alpine:init', () => {
       try {
         await window.api.settings.set({ dilisenseApiKey: this.settings.dilisenseApiKey });
         const r = await window.api.dilisense.test(this.settings.dilisenseApiKey);
+        await this.loadUsage();
         this.diliMsg = { ok: true, text: 'Verbindung ok (Testabfrage lieferte ' + r.total_hits + ' Treffer).' };
       } catch (e) { this.diliMsg = { ok: false, text: e.message }; }
       finally { this.diliBusy = false; }
@@ -241,19 +265,29 @@ document.addEventListener('alpine:init', () => {
       this.importing = true;
       try {
         const res = await window.KYCImport.importFileList(fileList, this.fieldMap);
-        let saved = 0;
+        let saved = 0, updated = 0, skipped = 0;
         for (const p of res.persons) {
           if (!window.KYC.vpName(p.data)) continue;   // ohne Namen überspringen
-          await window.api.persons.save({ kyc: p.data });
-          saved++;
+          const dup = this.findDupLocal(p.data);
+          if (dup) {
+            const name = window.KYC.vpName(p.data);
+            if (!confirm(`„${name}" ist bereits erfasst. Bestehenden Datensatz mit den importierten Daten aktualisieren?\n\n[OK] = aktualisieren · [Abbrechen] = überspringen`)) { skipped++; continue; }
+            await window.api.persons.save({ id: dup.id, kyc: p.data });
+            updated++;
+          } else {
+            await window.api.persons.save({ kyc: p.data });
+            saved++;
+          }
         }
         await this.reload();
         const parts = [];
-        if (saved) parts.push(saved + ' Person(en) importiert');
+        if (saved) parts.push(saved + ' neu importiert');
+        if (updated) parts.push(updated + ' aktualisiert');
+        if (skipped) parts.push(skipped + ' übersprungen');
         if (res.skipped.length) parts.push(res.skipped.length + ' Datei(en) nicht erkannt');
-        if (!saved && !res.skipped.length) parts.push('Keine verwertbaren Formulare gefunden');
-        this.showToast(saved ? 'ok' : 'warn', parts.join(' · '));
-        if (saved) this.view = 'persons';
+        if (!saved && !updated && !skipped && !res.skipped.length) parts.push('Keine verwertbaren Formulare gefunden');
+        this.showToast((saved || updated) ? 'ok' : 'warn', parts.join(' · '));
+        if (saved || updated) this.view = 'persons';
       } catch (err) {
         this.showToast('danger', 'Import fehlgeschlagen: ' + err.message);
       } finally {
@@ -270,8 +304,8 @@ document.addEventListener('alpine:init', () => {
     async amlAnalyzeFile(file) {
       this.amlBusy = true;
       try {
-        const payload = { name: file.name, pruefer: this.amlPruefer };
-        if (file.path) payload.path = file.path; else payload.text = await file.text();
+        // Datei-Inhalt im Renderer lesen (robust über alle Electron-Versionen)
+        const payload = { name: file.name, pruefer: this.amlPruefer, text: await file.text() };
         this.amlResult = await window.api.aml.analyze(payload);
         this.view = 'aml';
         await this.amlLoadList();
@@ -284,7 +318,7 @@ document.addEventListener('alpine:init', () => {
       this.amlBusy = true;
       try {
         const jahr = (this.amlResult.agg.periodTo || '').slice(0, 4);
-        const r = await window.api.aml.exportPdf(this.amlResult.html, 'AML_Revision_Bericht_' + jahr + '.pdf');
+        const r = await window.api.aml.exportPdf(this.amlResult.agg, { pruefer: this.amlPruefer }, 'AML_Revision_Bericht_' + jahr + '.pdf');
         if (r.saved) this.showToast('ok', 'PDF gespeichert: ' + r.path);
       } catch (e) { this.showToast('danger', 'PDF-Export fehlgeschlagen: ' + e.message); }
       finally { this.amlBusy = false; }
@@ -332,6 +366,29 @@ document.addEventListener('alpine:init', () => {
       return sign + int.replace('-', '').replace(/\B(?=(\d{3})+(?!\d))/g, "'") + '.' + dec;
     },
     fmtD(iso) { if (!iso) return '—'; const d = iso.slice(0, 10).split('-'); return d.length === 3 ? `${d[2]}.${d[1]}.${d[0]}` : iso; },
+    async loadUsage() { try { this.dilisenseUsage = await window.api.dilisense.usage(); } catch (_) {} },
+
+    findDupLocal(data) {
+      const name = (window.KYC.vpName(data) || '').toLowerCase().trim();
+      if (!name) return null;
+      const dob = data.np_geburtsdatum || '';
+      const gwg = (data.gwg_file_nr || '').toLowerCase().trim();
+      return this.persons.find(p => {
+        const k = p.kyc || {}, pid = p.identity || {};
+        if (gwg && (k.gwg_file_nr || '').toLowerCase().trim() === gwg) return true;
+        return (pid.displayName || '').toLowerCase().trim() === name && (pid.dob || '') === dob;
+      }) || null;
+    },
+
+    // ── Formular-Dirty-Check (Datenverlust vermeiden) ──
+    snapForm() { return JSON.stringify({ d: this.data, f: this.foreign }); },
+    isFormDirty() { return this.view === 'form' && this._formSnap !== this.snapForm(); },
+    navTo(v) {
+      if (this.isFormDirty() && v !== 'form') {
+        if (!confirm('Das Formular hat ungespeicherte Änderungen. Ohne Speichern verlassen?')) return;
+      }
+      this.view = v;
+    },
 
     // ── Diverses ──
     openExt(url) { window.api.app.openExternal(url); },

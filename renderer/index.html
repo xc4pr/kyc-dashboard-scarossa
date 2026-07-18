@@ -67,21 +67,21 @@
 
   <!-- ═══════════════ SIDEBAR ═══════════════ -->
   <nav class="sidebar">
-    <button class="nav-item" :class="view==='dashboard' && 'active'" @click="view='dashboard'">
+    <button class="nav-item" :class="view==='dashboard' && 'active'" @click="navTo('dashboard')">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></span>
       Dashboard
     </button>
-    <button class="nav-item" :class="view==='persons' && 'active'" @click="view='persons'">
+    <button class="nav-item" :class="view==='persons' && 'active'" @click="navTo('persons')">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
       Personen
       <span class="badge-count" x-show="persons.length" x-text="persons.length"></span>
     </button>
-    <button class="nav-item" :class="view==='screening' && 'active'" @click="view='screening'">
+    <button class="nav-item" :class="view==='screening' && 'active'" @click="navTo('screening')">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
       Screening
       <span class="badge-count" x-show="reviewCount" x-text="reviewCount"></span>
     </button>
-    <button class="nav-item" :class="view==='aml' && 'active'" @click="view='aml'; amlLoadList()">
+    <button class="nav-item" :class="view==='aml' && 'active'" @click="navTo('aml'); amlLoadList()">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="4" width="3" height="14"/></svg></span>
       AML-Report
     </button>
@@ -89,7 +89,7 @@
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 11h2"/></svg></span>
       KYC-Formular
     </button>
-    <button class="nav-item" :class="view==='settings' && 'active'" @click="view='settings'">
+    <button class="nav-item" :class="view==='settings' && 'active'" @click="navTo('settings')">
       <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.6 15H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 5 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 3.6V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 16 5a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 20.4 9H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
       Einstellungen
     </button>
@@ -227,8 +227,9 @@
                 <td>
                   <div class="row-actions">
                     <button class="btn btn-sm" @click="screenPerson(p.id)" :disabled="screenBusy" title="Jetzt prüfen">Prüfen</button>
+                    <button class="btn btn-sm" @click="screeningProof(p)" x-show="p.lastScreenedAt" title="Screening-Nachweis als PDF">Nachweis</button>
                     <button class="btn btn-sm" @click="openPerson(p.id)" title="Bearbeiten">Bearbeiten</button>
-                    <button class="btn btn-sm btn-danger" @click="deletePerson(p)" title="Löschen">✕</button>
+                    <button class="btn btn-sm btn-danger" @click="deletePerson(p)" title="Archivieren (aufbewahrt)">✕</button>
                   </div>
                 </td>
               </tr>
@@ -270,6 +271,7 @@
             <span class="badge review"><span class="dot"></span>Prüfung nötig</span>
             <div class="spacer" style="flex:1"></div>
             <button class="btn btn-sm" @click="screenPerson(p.id)" :disabled="screenBusy">Neu prüfen</button>
+            <button class="btn btn-sm" @click="screeningProof(p)">Nachweis (PDF)</button>
             <button class="btn btn-sm btn-primary" @click="clearReview(p)">Als geprüft/ok markieren</button>
           </div>
           <hr class="sep" />
@@ -285,6 +287,8 @@
                     <span x-show="h.citizenship" x-text="'Staat: '+h.citizenship"></span>
                     <span x-show="h.dob" x-text="'geb. '+h.dob"></span>
                     <span x-show="h.years && h.years.length" x-text="'Jahr(e): '+(h.years||[]).join('/')"></span>
+                    <span class="badge clear" x-show="h.dobMatch==='match'"><span class="dot"></span>Geburtsjahr passt</span>
+                    <span class="badge tag" x-show="h.dobMatch==='mismatch'">Geburtsjahr abweichend</span>
                     <span x-show="h.aliases && h.aliases.length" class="muted" x-text="'Aliase: '+(h.aliases||[]).join('; ')"></span>
                   </div>
                 </div>
@@ -1674,6 +1678,11 @@
           <span class="small" :style="diliMsg.ok ? 'color:var(--ok)' : 'color:var(--danger)'" x-text="diliMsg.text"></span>
           <a href="#" @click.prevent="openExt('https://dilisense.com/en')" class="small">Key erstellen →</a>
         </div>
+        <div class="kv" style="margin-top:10px"><span class="k">Kontingent (Monat)</span>
+          <span :style="dilisenseUsage.count>=100 ? 'color:var(--danger)' : (dilisenseUsage.count>=80 ? 'color:var(--warn)' : '')">
+            <span x-text="dilisenseUsage.count"></span> / 100 Abfragen genutzt
+          </span>
+        </div>
       </div>
 
       <div class="card card-pad" style="margin-bottom:18px">
@@ -1721,6 +1730,10 @@
       <div class="card card-pad">
         <h3>App & Daten</h3>
         <div class="kv"><span class="k">Datenbank</span><span class="mono" x-text="appInfo.dbFile || '—'"></span></div>
+        <div class="kv"><span class="k">Verschlüsselung at rest</span>
+          <span x-html="appInfo.encrypted ? '<span class=\'badge clear\'><span class=\'dot\'></span>aktiv (safeStorage)</span>' : '<span class=\'badge review\'><span class=\'dot\'></span>nicht verfügbar — Klartext</span>'"></span>
+        </div>
+        <div class="kv"><span class="k">Archivierte Personen</span><span x-text="appInfo.archivedCount || 0"></span></div>
         <div class="kv"><span class="k">Electron / Node</span><span class="mono" x-text="(appInfo.versions?.electron||'')+' / '+(appInfo.versions?.node||'')"></span></div>
         <div style="margin-top:12px;display:flex;gap:8px">
           <button class="btn btn-sm" @click="openDataDir()">Datenordner öffnen</button>

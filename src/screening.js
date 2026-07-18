@@ -8,15 +8,18 @@
 
 const seco = require('./seco');
 const dilisense = require('./dilisense');
+const match = require('./match');
 
 function newId() { return 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
-// person: DB-Record mit .identity und .foreign
+// person: DB-Record mit .identity, .foreign und .clearedHits
 // settings: {dilisenseApiKey, fuzzy}
 async function screenPerson(person, settings) {
   const at = new Date().toISOString();
   const identity = person.identity || {};
   const fuzzy = settings.fuzzy !== false;
+  const cleared = new Set(person.clearedHits || []);
+  const birthYear = (identity.dob || '').slice(0, 4);
   const sources = [];
   const hits = [];
   const errors = [];
@@ -50,23 +53,39 @@ async function screenPerson(person, settings) {
     }
   }
 
+  // Treffer anreichern: Whitelist-Status (False-Positive-Gedächtnis) + Geburtsjahr-Abgleich
+  for (const h of hits) {
+    h.key = match.hitKey(h);
+    h.cleared = cleared.has(h.key);
+    if (birthYear && Array.isArray(h.years) && h.years.length) {
+      h.dobMatch = h.years.includes(birthYear) ? 'match' : 'mismatch';
+    } else {
+      h.dobMatch = 'unknown';
+    }
+  }
+  const newHits = hits.filter(h => !h.cleared);   // bereits abgehakte nicht neu melden
+
   let status;
-  if (hits.length > 0) status = 'review';
+  if (newHits.length > 0) status = 'review';
   else if (errors.length > 0) status = 'error';
   else status = 'clear';
 
-  const summary = hits.length > 0
-    ? `${hits.length} möglliche(r) Treffer — Prüfung nötig`
-    : (errors.length > 0 ? 'Unvollständig: ' + errors[0] : 'Keine Treffer');
+  const summary = newHits.length > 0
+    ? `${newHits.length} mögliche(r) Treffer — Prüfung nötig`
+    : (hits.length > 0 ? `${hits.length} Treffer, alle als geprüft markiert`
+      : (errors.length > 0 ? 'Unvollständig: ' + errors[0] : 'Keine Treffer'));
 
   return {
     id: newId(),
     at,
     query: identity.screenName,
+    secoListDate: (seco.meta() || {}).listDate || null,
     sources,
     status,
-    summary: summary.replace('möglliche', 'mögliche'),
+    summary,
     hits,
+    newHitCount: newHits.length,
+    diliUsed: sources.includes('dilisense'),
     errors
   };
 }
@@ -75,14 +94,17 @@ async function screenPerson(person, settings) {
 async function screenDue(store, settings, intervalDays, onProgress) {
   const due = store.duePersons(intervalDays);
   const results = [];
+  let diliCalls = 0;
   for (let i = 0; i < due.length; i++) {
     const p = due[i];
     const result = await screenPerson(p, settings);
     store.recordScreening(p.id, result);
-    results.push({ id: p.id, name: p.identity.displayName, status: result.status });
+    if (result.diliUsed) diliCalls++;
+    results.push({ id: p.id, name: p.identity.displayName, status: result.status, diliUsed: result.diliUsed });
     if (onProgress) onProgress(i + 1, due.length, p);
   }
-  return { checked: due.length, results };
+  if (diliCalls > 0) store.bumpDilisenseUsage(diliCalls);
+  return { checked: due.length, results, diliCalls };
 }
 
 module.exports = { screenPerson, screenDue };

@@ -95,4 +95,10 @@ function scoreAgainstMany(queryName, candidateNames, fuzzy) {
   return best;
 }
 
-module.exports = { normalize, tokens, lev, scoreName, scoreAgainstMany };
+// Stabiler Schlüssel eines Treffers (für False-Positive-Whitelist pro Person)
+function hitKey(h) {
+  const id = h.ssid || h.source_id || '';
+  return `${h.source || ''}:${id}:${normalize(h.name)}`;
+}
+
+module.exports = { normalize, tokens, lev, scoreName, scoreAgainstMany, hitKey };

@@ -28,21 +28,74 @@ function initData() {
   seco.init(dataDir);
 }
 
-// HTML → PDF (A4 quer) über ein unsichtbares Fenster
-async function htmlToPdf(html) {
+// HTML → PDF (A4) über ein unsichtbares Fenster
+async function htmlToPdf(html, opts) {
+  const landscape = !opts || opts.landscape !== false;
   const w = new BrowserWindow({ show: false, webPreferences: { offscreen: false } });
   try {
     await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    return await w.webContents.printToPDF({ landscape: true, printBackground: true, pageSize: 'A4' });
+    return await w.webContents.printToPDF({ landscape, printBackground: true, pageSize: 'A4' });
   } finally {
     w.destroy();
   }
 }
 
+function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// Screening-Nachweis (A4 hoch) für die VQF-Revision
+function renderScreeningProof(p) {
+  const id = p.identity || {};
+  const last = (p.screenings || [])[0];
+  const de = iso => { if (!iso) return '—'; try { return new Date(iso).toLocaleString('de-CH'); } catch { return iso; } };
+  const deDate = iso => { if (!iso) return '—'; const d = String(iso).slice(0, 10).split('-'); return d.length === 3 ? `${d[2]}.${d[1]}.${d[0]}` : iso; };
+  const statusText = { clear: 'Kein Treffer (unbedenklich)', review: 'Treffer — manuelle Prüfung nötig', error: 'Unvollständig', hit: 'Treffer', never: 'Nie geprüft' }[(last && last.status) || p.screeningStatus] || '—';
+  const hitsHtml = (last && last.hits && last.hits.length)
+    ? last.hits.map(h => `<tr><td style="padding:5px 10px;border-bottom:1px solid #ddd;">${escHtml(h.name)}</td><td style="padding:5px 10px;border-bottom:1px solid #ddd;">${escHtml(h.source)} / ${escHtml(h.source_type || '')}</td><td style="padding:5px 10px;border-bottom:1px solid #ddd;">${escHtml((h.years || []).join(', '))}${h.dobMatch && h.dobMatch !== 'unknown' ? ' (' + (h.dobMatch === 'match' ? 'Jahr passt' : 'Jahr abweichend') + ')' : ''}</td><td style="padding:5px 10px;border-bottom:1px solid #ddd;">${h.cleared ? 'als False-Positive abgehakt' : 'offen'}</td></tr>`).join('')
+    : '<tr><td colspan="4" style="padding:8px 10px;color:#1a7a3c;">Keine Treffer gegen die geprüften Listen.</td></tr>';
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
+    @page { size: A4 portrait; margin: 2cm; }
+    body { font-family: Arial, sans-serif; font-size: 10.5pt; color:#1a1a1a; }
+    h1 { font-size:15pt; color:#003366; border-bottom:2.5px solid #003366; padding-bottom:5px; }
+    .kv { padding:3px 0; } .kv b { display:inline-block; width:200px; color:#555; }
+    table { border-collapse:collapse; width:100%; margin-top:8px; font-size:9.5pt; }
+    th { background:#003366; color:#fff; text-align:left; padding:6px 10px; }
+    .status { font-size:12pt; font-weight:bold; padding:8px 12px; border-radius:4px; display:inline-block; margin:10px 0; }
+    .ok { background:#e9f8ee; color:#1a7a3c; } .warn { background:#fdeaea; color:#c0392b; }
+    .foot { margin-top:26px; border-top:1px solid #ccc; padding-top:6px; font-size:8pt; color:#888; }
+  </style></head><body>
+  <h1>Screening-Nachweis — Sanktions-/PEP-Prüfung</h1>
+  <div class="kv"><b>Person / Vertragspartei:</b> ${escHtml(id.displayName || '—')}</div>
+  <div class="kv"><b>Geburtsdatum:</b> ${deDate(id.dob)}</div>
+  <div class="kv"><b>Nationalität:</b> ${escHtml(id.nationality || '—')}</div>
+  <div class="kv"><b>GwG-File-Nr.:</b> ${escHtml((p.kyc && p.kyc.gwg_file_nr) || '—')}</div>
+  <div class="kv"><b>Geprüft am:</b> ${de(last && last.at)}</div>
+  <div class="kv"><b>Geprüfte Quellen:</b> ${escHtml((last && last.sources || []).join(', ') || '—')}</div>
+  <div class="kv"><b>SECO-Listenstand:</b> ${deDate(last && last.secoListDate)}</div>
+  <div class="status ${(last && last.status) === 'clear' ? 'ok' : 'warn'}">Ergebnis: ${statusText}</div>
+  <table><tr><th>Treffername</th><th>Quelle</th><th>Geburtsjahr(e)</th><th>Status</th></tr>${hitsHtml}</table>
+  <div class="foot">Automatisch erzeugter Nachweis · KYC-Dashboard Scarossa · Erstellt: ${de(new Date().toISOString())}<br>
+  Methodik: Namensabgleich (Fuzzy) gegen SECO-Sanktionsliste${(last && last.sources || []).includes('dilisense') ? ' und dilisense (Sanktionen/PEP/Kriminallisten)' : ''}. Treffer werden nie automatisch verworfen.</div>
+  </body></html>`;
+}
+
 // ─── Headless-Screening (vom OS-Zeitplan gestartet) ───────────────────────────
 async function runHeadlessScreening() {
+  // Nicht gleichzeitig mit offener GUI in dieselbe DB schreiben (Datenintegrität)
+  if (!app.requestSingleInstanceLock()) {
+    console.log('GUI-Instanz läuft — Headless-Screening übersprungen.');
+    app.quit();
+    return;
+  }
   initData();
   const settings = store.getSettings();
+  // SECO-Liste zuerst aktualisieren (sonst wird gegen alten Stand geprüft);
+  // bei Netzfehler Fallback auf den gecachten Index.
+  try {
+    const meta = await seco.refresh(settings.secoUrl);
+    store.setSeco(meta);
+  } catch (e) {
+    console.error('SECO-Refresh fehlgeschlagen, nutze Cache:', e.message);
+  }
   const res = await screening.screenDue(store, settings, settings.screeningIntervalDays);
   const flagged = res.results.filter(r => r.status === 'review');
   const errored = res.results.filter(r => r.status === 'error');
@@ -80,6 +133,7 @@ function createWindow() {
       sandbox: false
     }
   });
+  win.autoHideMenuBar = true;   // Menü versteckt, Accelerators (Zoom, Ctrl+Q) bleiben
   win.setMenuBarVisibility(false);
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   // Dev: AML-Ansicht mit Vorschau erfassen (nur wenn KYC_AMLSHOT gesetzt).
@@ -137,6 +191,7 @@ function createWindow() {
         await shot('dashboard');
         await setView('persons'); await shot('persons');
         await setView('screening'); await shot('screening');
+        await setView('settings'); await shot('settings');
         await setView('form'); await shot('form');
         app.quit();
       }, 2600);
@@ -173,8 +228,11 @@ function registerIpc() {
 
   // dilisense
   ipcMain.handle('dilisense:test', async (_e, key) => {
-    return dilisense.testKey(key || store.getSettings().dilisenseApiKey);
+    const r = await dilisense.testKey(key || store.getSettings().dilisenseApiKey);
+    store.bumpDilisenseUsage(1);   // Testabfrage zählt aufs Gratis-Kontingent
+    return r;
   });
+  ipcMain.handle('dilisense:usage', () => store.getDilisenseUsage());
 
   // Screening
   ipcMain.handle('screening:person', async (_e, id) => {
@@ -182,6 +240,7 @@ function registerIpc() {
     if (!p) throw new Error('Person nicht gefunden.');
     const result = await screening.screenPerson(p, store.getSettings());
     store.recordScreening(id, result);
+    if (result.diliUsed) store.bumpDilisenseUsage(1);
     return result;
   });
   ipcMain.handle('screening:due', async (_e) => {
@@ -191,14 +250,32 @@ function registerIpc() {
     });
     return res;
   });
+  // Treffer als geprüft/ok abhaken (False-Positive-Whitelist)
+  ipcMain.handle('screening:clearHits', (_e, id, hitKeys) => store.clearPersonHits(id, hitKeys));
+  // Screening-Nachweis als PDF (VQF-Revision)
+  ipcMain.handle('screening:proofPdf', async (_e, id) => {
+    const p = store.getPerson(id);
+    if (!p) throw new Error('Person nicht gefunden.');
+    const html = renderScreeningProof(p);
+    const pdf = await htmlToPdf(html, { landscape: false });
+    const name = 'Screening-Nachweis_' + (p.identity.displayName || 'Person').replace(/[^a-zA-Z0-9äöüÄÖÜ\- ]/g, '').trim().replace(/ /g, '_') + '.pdf';
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'Screening-Nachweis speichern', defaultPath: name, filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    });
+    if (canceled || !filePath) return { saved: false };
+    fs.writeFileSync(filePath, pdf);
+    return { saved: true, path: filePath };
+  });
 
   // Zeitplan (OS-Task)
   ipcMain.handle('scheduler:status', () => scheduler.status());
   ipcMain.handle('scheduler:install', (_e, opts) => scheduler.install(app, opts || {}));
   ipcMain.handle('scheduler:remove', () => scheduler.remove());
 
-  // DOCX-Vorlagen für den Renderer
+  // DOCX-Vorlagen für den Renderer — nur Whitelist (kein Path-Traversal)
+  const ALLOWED_TEMPLATES = ['902.1.docx', '902.4.docx', '902.5.docx', '902.9.docx'];
   ipcMain.handle('docx:template', (_e, name) => {
+    if (!ALLOWED_TEMPLATES.includes(name)) throw new Error('Unbekannte Vorlage: ' + name);
     const file = resourcePath(path.join('templates', name));
     const buf = fs.readFileSync(file);
     return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
@@ -220,15 +297,22 @@ function registerIpc() {
   // AML-/Kassageschäft-Auswertung
   ipcMain.handle('aml:analyze', (_e, payload) => {
     const p = payload || {};
-    const text = p.text != null ? p.text : fs.readFileSync(p.path, 'utf-8');
+    let text;
+    if (p.text != null) {
+      text = p.text;
+    } else {
+      if (!p.path || !/\.csv$/i.test(p.path)) throw new Error('Nur .csv-Dateien erlaubt.');
+      text = fs.readFileSync(p.path, 'utf-8');
+    }
     const records = aml.parseCsv(text);
     const agg = aml.analyze(records);
+    if (!agg) throw new Error('CSV nicht erkannt — bitte Transaktions-Export (Lamassu-Format) verwenden.');
     const html = aml.renderReport(agg, { pruefer: p.pruefer });
     return { agg, html, records: records.length, sourceFile: p.name || (p.path ? path.basename(p.path) : '') };
   });
-  ipcMain.handle('aml:render', (_e, agg, meta) => aml.renderReport(agg, meta || {}));
-  ipcMain.handle('aml:exportPdf', async (_e, html, defaultName) => {
-    const pdf = await htmlToPdf(html);
+  // PDF-Export: Renderer übergibt nur agg+meta, HTML entsteht im Main-Prozess (kein Fremd-HTML)
+  ipcMain.handle('aml:exportPdf', async (_e, agg, meta, defaultName) => {
+    const pdf = await htmlToPdf(aml.renderReport(agg, meta || {}));
     const { canceled, filePath } = await dialog.showSaveDialog(win, {
       title: 'AML-Bericht als PDF speichern',
       defaultPath: defaultName || 'AML_Revision_Bericht.pdf',
@@ -238,9 +322,13 @@ function registerIpc() {
     fs.writeFileSync(filePath, pdf);
     return { saved: true, path: filePath };
   });
+  ipcMain.handle('aml:render', (_e, agg, meta) => aml.renderReport(agg, meta || {}));
   ipcMain.handle('aml:list', () => store.listAmlReports());
   ipcMain.handle('aml:save', (_e, report) => store.saveAmlReport(report));
   ipcMain.handle('aml:delete', (_e, id) => store.deleteAmlReport(id));
+
+  // Archiv (aufbewahrte, "gelöschte" Personen)
+  ipcMain.handle('persons:archived', () => store.listArchived());
 
   // App-Infos
   ipcMain.handle('app:info', () => ({
@@ -248,6 +336,9 @@ function registerIpc() {
     versions: { electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome },
     dataDir: store.dataDir(),
     dbFile: store.dbFilePath(),
+    encrypted: store.encryptionAvailable(),
+    dilisenseUsage: store.getDilisenseUsage(),
+    archivedCount: store.listArchived().length,
     isPackaged: app.isPackaged
   }));
   ipcMain.handle('app:openDataDir', () => shell.openPath(store.dataDir()));
