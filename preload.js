@@ -9,7 +9,9 @@ contextBridge.exposeInMainWorld('api', {
     save: (p) => ipcRenderer.invoke('persons:save', p),
     remove: (id) => ipcRenderer.invoke('persons:delete', id),
     archived: () => ipcRenderer.invoke('persons:archived'),
-    due: () => ipcRenderer.invoke('persons:due')
+    due: () => ipcRenderer.invoke('persons:due'),
+    exportCsv: () => ipcRenderer.invoke('persons:exportCsv'),
+    dossierPdf: (id) => ipcRenderer.invoke('persons:dossierPdf', id)
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
@@ -44,12 +46,15 @@ contextBridge.exposeInMainWorld('api', {
     analyze: (payload) => ipcRenderer.invoke('aml:analyze', payload),
     render: (agg, meta) => ipcRenderer.invoke('aml:render', agg, meta),
     exportPdf: (agg, meta, name) => ipcRenderer.invoke('aml:exportPdf', agg, meta, name),
+    links: () => ipcRenderer.invoke('aml:links'),
+    link: (ref, personId) => ipcRenderer.invoke('aml:link', ref, personId),
     list: () => ipcRenderer.invoke('aml:list'),
     save: (report) => ipcRenderer.invoke('aml:save', report),
     remove: (id) => ipcRenderer.invoke('aml:delete', id)
   },
   app: {
     info: () => ipcRenderer.invoke('app:info'),
+    partial: (name) => ipcRenderer.invoke('app:partial', name),
     openDataDir: () => ipcRenderer.invoke('app:openDataDir'),
     openExternal: (url) => ipcRenderer.invoke('app:openExternal', url)
   }

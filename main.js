@@ -78,6 +78,78 @@ function renderScreeningProof(p) {
   </body></html>`;
 }
 
+// KYC-Dossier (A4 hoch): alle erfassten Daten strukturiert als PDF
+function renderKycDossier(p) {
+  const d = p.kyc || {}, id = p.identity || {};
+  const deDate = iso => { if (!iso) return '—'; const x = String(iso).slice(0, 10).split('-'); return x.length === 3 ? `${x[2]}.${x[1]}.${x[0]}` : iso; };
+  const v = x => escHtml(x || '—');
+  const yn = b => b ? 'Ja' : 'Nein';
+  const row = (label, val) => `<tr><td class="l">${escHtml(label)}</td><td>${val}</td></tr>`;
+  const sec = (title, rows) => rows.filter(Boolean).length
+    ? `<h2>${escHtml(title)}</h2><table>${rows.filter(Boolean).join('')}</table>` : '';
+
+  const typLabel = { np: 'Natürliche Person', eu: 'Einzelunternehmen', jp: 'Juristische Person' }[d.vp_typ] || d.vp_typ;
+  let vpRows = [row('Typ', escHtml(typLabel))];
+  if (d.vp_typ === 'np') vpRows.push(
+    row('Name, Vorname', v([d.np_name, d.np_vorname].filter(Boolean).join(', '))),
+    row('Adresse', v([d.np_strasse, [d.np_plz, d.np_ort].filter(Boolean).join(' ')].filter(Boolean).join(', '))),
+    row('Geburtsdatum', deDate(d.np_geburtsdatum)), row('Staatsangehörigkeit', v(d.np_staatsangehoerigkeit)),
+    row('Telefon / E-Mail', v([d.np_telefon, d.np_email].filter(Boolean).join(' / '))),
+    row('Identifikationsdokument', v(d.np_identifikationsdokument)), row('Ausweiskopie beigefügt', yn(d.np_ausweiskopie_beigefuegt)));
+  if (d.vp_typ === 'eu') vpRows.push(
+    row('Firma', v(d.eu_firma)),
+    row('Geschäftsadresse', v([d.eu_strasse, [d.eu_plz, d.eu_ort].filter(Boolean).join(' ')].filter(Boolean).join(', '))),
+    row('Identifikationsdokument', v(d.eu_identifikationsdokument)));
+  if (d.vp_typ === 'jp') vpRows.push(
+    row('Firma', v(d.jp_firma)),
+    row('Domiziladresse', v([d.jp_strasse, [d.jp_plz, d.jp_ort].filter(Boolean).join(' ')].filter(Boolean).join(', '))),
+    row('Kontaktperson', v([d.jp_kp_name, d.jp_kp_vorname].filter(Boolean).join(', '))),
+    row('Telefon / E-Mail', v([d.jp_telefon, d.jp_email].filter(Boolean).join(' / '))));
+
+  const risiko = d.risiko_mit_erhoehtem ? 'Mit erhöhtem Risiko' : 'Ohne erhöhtes Risiko';
+  const pepJa = d.pep_ausl_ja || d.pep_inl_ja || d.pep_int_ja;
+
+  return `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
+    @page { size: A4 portrait; margin: 2cm; }
+    body { font-family: Arial, sans-serif; font-size: 10pt; color:#1a1a1a; }
+    h1 { font-size:15pt; color:#003366; border-bottom:2.5px solid #003366; padding-bottom:5px; margin-bottom: 4px; }
+    .sub { color:#777; font-size:9pt; margin-bottom: 14px; }
+    h2 { font-size:10.5pt; color:#fff; background:#003366; padding:5px 10px; margin:16px 0 0; }
+    table { border-collapse:collapse; width:100%; font-size:9.5pt; }
+    td { padding:5px 10px; border-bottom:1px solid #e2e2e2; vertical-align: top; }
+    td.l { width: 220px; color:#555; font-weight: bold; }
+    .foot { margin-top:26px; border-top:1px solid #ccc; padding-top:6px; font-size:8pt; color:#888; }
+  </style></head><body>
+  <h1>KYC-Dossier — ${escHtml(id.displayName || '')}</h1>
+  <div class="sub">GwG-File ${escHtml(d.gwg_file_nr || '—')} · VQF ${escHtml(d.vqf_mitglied_nr || '—')} · Erfasst von ${escHtml(d.filler_name || '—')} am ${deDate(d.filler_datum)}</div>
+  ${sec('Vertragspartei', vpRows)}
+  ${sec('Aufnahme der Geschäftsbeziehung', [
+    row('Vertragsschluss', deDate(d.vertragsschluss_datum)),
+    row('Aufnahmeart', escHtml([d.aufnahme_persoenlich && 'Persönlich', d.aufnahme_korrespondenz && 'Korrespondenz'].filter(Boolean).join(', ') || '—')),
+    row('Embargo-Prüfung', v(d.embargo_pruefung_resultat)),
+    d.weiteres ? row('Weiteres', v(d.weiteres)) : null])}
+  ${sec('Wirtschaftlich Berechtigter', [
+    row('Name, Vorname', v([d.wb_name, d.wb_vorname].filter(Boolean).join(', '))),
+    row('Geburtsdatum / Nationalität', escHtml([deDate(d.wb_geburtsdatum), d.wb_nationalitaet].filter(x => x && x !== '—').join(' / ') || '—')),
+    row('Wohnsitz', v([d.wb_strasse, [d.wb_plz, d.wb_ort].filter(Boolean).join(' ')].filter(Boolean).join(', ')))])}
+  ${sec('Risikoprofil (902.4)', [
+    row('PEP', pepJa ? 'JA — PEP-Bezug vorhanden' : 'Nein'),
+    row('High-Risk-Land', d.high_risk_ja ? 'Ja' : 'Nein'),
+    row('Risikoklassifizierung', escHtml(risiko)),
+    d.risiko_begruendung_abweichend ? row('Begründung', v(d.risiko_begruendung_abweichend)) : null])}
+  ${sec('Kundenprofil (902.5)', [
+    row('Beruf / Tätigkeit', v(d.kp_beruf)), row('Einkommen', v(d.kp_einkommen)),
+    row('Eingebrachte Vermögenswerte', v(d.kp_eingebrachte_art)),
+    row('Herkunft', v(d.kp_herkunft_detailliert)), row('Zweck', v(d.kp_zweck)),
+    row('Geschäftsvolumen', v(d.kp_geschaeftsvolumen)),
+    d.kp_sonstiges ? row('Sonstiges', v(d.kp_sonstiges)) : null])}
+  ${sec('Screening-Status', [
+    row('Letzte Prüfung', p.lastScreenedAt ? new Date(p.lastScreenedAt).toLocaleString('de-CH') : 'Nie'),
+    row('Ergebnis', escHtml(p.screeningSummary || '—'))])}
+  <div class="foot">KYC-Dossier · automatisch erzeugt · KYC-Dashboard Scarossa · ${new Date().toLocaleString('de-CH')} — Vertraulich (DSG)</div>
+  </body></html>`;
+}
+
 // ─── Headless-Screening (vom OS-Zeitplan gestartet) ───────────────────────────
 async function runHeadlessScreening() {
   // Nicht gleichzeitig mit offener GUI in dieselbe DB schreiben (Datenintegrität)
@@ -123,14 +195,14 @@ function createWindow() {
     height: 860,
     minWidth: 960,
     minHeight: 640,
-    backgroundColor: '#0d1117',
+    backgroundColor: '#EAE7E0',
     title: 'KYC-Dashboard Scarossa',
     icon: path.join(__dirname, 'renderer', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
   });
   win.autoHideMenuBar = true;   // Menü versteckt, Accelerators (Zoom, Ctrl+Q) bleiben
@@ -330,6 +402,52 @@ function registerIpc() {
   // Archiv (aufbewahrte, "gelöschte" Personen)
   ipcMain.handle('persons:archived', () => store.listArchived());
 
+  // HTML-Partial laden (Aufteilung des Renderer-Monolithen) — Whitelist
+  const ALLOWED_PARTIALS = ['form-sections.html'];
+  ipcMain.handle('app:partial', (_e, name) => {
+    if (!ALLOWED_PARTIALS.includes(name)) throw new Error('Unbekanntes Partial: ' + name);
+    return fs.readFileSync(path.join(__dirname, 'renderer', name), 'utf-8');
+  });
+
+  // CSV-Export der Personenliste (DSG: Nutzer bestätigt im UI vor Aufruf)
+  ipcMain.handle('persons:exportCsv', async () => {
+    const persons = store.listPersons();
+    const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const rows = [['Name/Firma', 'Typ', 'Geburtsdatum', 'Nationalität', 'Ort', 'GwG-File-Nr', 'VQF-Nr', 'Ausland', 'Letzte Prüfung', 'Screening-Status', 'Erfasst', 'Aktualisiert']];
+    for (const p of persons) {
+      const id = p.identity || {}, k = p.kyc || {};
+      rows.push([id.displayName, id.kind === 'entity' ? 'Firma' : 'Person', id.dob, id.nationality, id.country,
+        k.gwg_file_nr, k.vqf_mitglied_nr, p.foreign ? 'ja' : 'nein', p.lastScreenedAt || '', p.screeningStatus, p.createdAt, p.updatedAt]);
+    }
+    const csv = '﻿' + rows.map(r => r.map(esc).join(';')).join('\r\n');
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'Personenliste als CSV exportieren',
+      defaultPath: 'KYC_Personenliste_' + new Date().toISOString().slice(0, 10) + '.csv',
+      filters: [{ name: 'CSV', extensions: ['csv'] }]
+    });
+    if (canceled || !filePath) return { saved: false };
+    fs.writeFileSync(filePath, csv, 'utf-8');
+    return { saved: true, path: filePath, count: persons.length };
+  });
+
+  // KYC-Dossier als PDF (zusätzlich zum DOCX-ZIP)
+  ipcMain.handle('persons:dossierPdf', async (_e, id) => {
+    const p = store.getPerson(id);
+    if (!p) throw new Error('Person nicht gefunden.');
+    const pdf = await htmlToPdf(renderKycDossier(p), { landscape: false });
+    const name = 'KYC_Dossier_' + (p.identity.displayName || 'Person').replace(/[^a-zA-Z0-9äöüÄÖÜ\- ]/g, '').trim().replace(/ /g, '_') + '.pdf';
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'KYC-Dossier als PDF speichern', defaultPath: name, filters: [{ name: 'PDF', extensions: ['pdf'] }]
+    });
+    if (canceled || !filePath) return { saved: false };
+    fs.writeFileSync(filePath, pdf);
+    return { saved: true, path: filePath };
+  });
+
+  // AML↔KYC-Verknüpfung: GwG-pflichtige ATM-Kunden einem KYC-Dossier zuordnen
+  ipcMain.handle('aml:links', () => store.getAmlLinks());
+  ipcMain.handle('aml:link', (_e, customerRef, personId) => store.setAmlLink(customerRef, personId));
+
   // App-Infos
   ipcMain.handle('app:info', () => ({
     platform: process.platform,
@@ -374,6 +492,20 @@ if (process.argv.includes('--amltest')) {
       initData();
       registerIpc();
       createWindow();
+      // Auto-Update (GitHub Releases). Fehler still ignorieren — z. B. wenn
+      // (noch) kein Release veröffentlicht ist oder offline.
+      if (app.isPackaged) {
+        try {
+          const { autoUpdater } = require('electron-updater');
+          autoUpdater.autoDownload = true;
+          autoUpdater.on('update-downloaded', (info) => {
+            if (Notification.isSupported()) {
+              new Notification({ title: 'KYC-Dashboard', body: 'Update ' + info.version + ' bereit — wird beim nächsten Schliessen installiert.' }).show();
+            }
+          });
+          autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+        } catch (_) { /* updater optional */ }
+      }
       app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
     });
     app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

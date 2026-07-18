@@ -1,6 +1,6 @@
 {
   "name": "kyc-dashboard-scarossa",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "KYC-Dashboard mit Personendatenbank und Sanktions-/PEP-Screening (SECO + dilisense) für VQF/GwG-Compliance",
   "main": "main.js",
   "author": "Scarossa <jopabl3000@gmail.com>",
@@ -11,14 +11,17 @@
     "screen": "electron . --screen",
     "dist:linux": "electron-builder --linux",
     "dist:win": "electron-builder --win",
-    "dist": "electron-builder -lw"
+    "dist": "electron-builder -lw",
+    "css": "tailwindcss -c tailwind.config.js -i tailwind.input.css -o renderer/lib/tailwind.css --minify"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "fast-xml-parser": "^4.5.1"
   },
   "devDependencies": {
-    "electron": "^33.2.1",
-    "electron-builder": "^25.1.8"
+    "electron": "^43.1.1",
+    "electron-builder": "^25.1.8",
+    "tailwindcss": "^3.4.16"
   },
   "build": {
     "appId": "ch.scarossa.kycdashboard",
@@ -32,16 +35,35 @@
       "field-map.json"
     ],
     "extraResources": [
-      { "from": "templates", "to": "templates" },
-      { "from": "field-map.json", "to": "field-map.json" }
+      {
+        "from": "templates",
+        "to": "templates"
+      },
+      {
+        "from": "field-map.json",
+        "to": "field-map.json"
+      }
     ],
-    "directories": { "output": "release" },
+    "directories": {
+      "output": "release"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "xc4pr",
+        "repo": "kyc-dashboard-scarossa"
+      }
+    ],
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "category": "Office"
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "nsis": {
       "oneClick": false,

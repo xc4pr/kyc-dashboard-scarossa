@@ -47,14 +47,17 @@ function emptyDb() {
     persons: [],
     archivedPersons: [],   // gelöschte Personen werden hier aufbewahrt (GwG Art. 7)
     settings: {
-      dilisenseApiKey: '',
+      // Vorkonfigurierter Firmen-Key (interne App, 3 Nutzer; bei Missbrauch im
+      // dilisense-Konto rotieren). In den Einstellungen überschreibbar.
+      dilisenseApiKey: 'UfdC71j1jq6kjm4l7xDKG2zkNItwxaEoiRYNwP5e',
       secoUrl: 'https://www.sesam.search.admin.ch/sesam-search-web/pages/downloadXmlGesamtliste.xhtml?lang=de&action=downloadXmlGesamtlisteAction',
       screeningIntervalDays: 7,
       fuzzy: true,
-      theme: 'dark'
+      theme: 'light'
     },
     seco: { lastDownload: null, listDate: null, entryCount: 0 },
     amlReports: [],
+    amlLinks: {},   // customerRef (ATM-Kunden-ID-Kürzel) → personId (KYC-Dossier)
     dilisenseUsage: { month: '', count: 0 },   // Gratis-Kontingent 100/Monat
     meta: { createdAt: new Date().toISOString() }
   };
@@ -89,6 +92,9 @@ function load() {
       if (!Array.isArray(cache.archivedPersons)) cache.archivedPersons = [];
       if (!Array.isArray(cache.amlReports)) cache.amlReports = [];
       if (!cache.dilisenseUsage) cache.dilisenseUsage = def.dilisenseUsage;
+      if (!cache.amlLinks) cache.amlLinks = {};
+      // Bestehende Installationen ohne Key erhalten den Firmen-Key
+      if (!cache.settings.dilisenseApiKey) cache.settings.dilisenseApiKey = def.settings.dilisenseApiKey;
       // Legacy-Klartext-DB einmalig verschlüsselt neu schreiben
       if (crypto.available) persist();
     } else {
@@ -273,6 +279,16 @@ function deleteAmlReport(id) {
   return true;
 }
 
+// AML↔KYC-Verknüpfung
+function getAmlLinks() { return Object.assign({}, cache.amlLinks || {}); }
+function setAmlLink(customerRef, personId) {
+  cache.amlLinks = cache.amlLinks || {};
+  if (personId) cache.amlLinks[customerRef] = personId;
+  else delete cache.amlLinks[customerRef];
+  persist();
+  return getAmlLinks();
+}
+
 function dbFilePath() { return DB_FILE; }
 function dataDir() { return DATA_DIR; }
 function encryptionAvailable() { return crypto.available; }
@@ -282,5 +298,6 @@ module.exports = {
   recordScreening, clearPersonHits, duePersons, deriveIdentity, guessForeign,
   getSettings, setSettings, getSeco, setSeco, dbFilePath, dataDir, encryptionAvailable,
   getDilisenseUsage, bumpDilisenseUsage,
-  listAmlReports, saveAmlReport, deleteAmlReport
+  listAmlReports, saveAmlReport, deleteAmlReport,
+  getAmlLinks, setAmlLink
 };

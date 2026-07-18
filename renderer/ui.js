@@ -6,7 +6,7 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('app', () => ({
     // Views / Theme
     view: 'dashboard',
-    theme: 'dark',
+    theme: 'light',
     toast: null,
 
     // KYC-Formular
@@ -44,8 +44,8 @@ document.addEventListener('alpine:init', () => {
     // AML-Auswertung
     amlResult: null, amlBusy: false, amlPruefer: '', amlReports: [],
 
-    // Dirty-Check + dilisense-Kontingent
-    _formSnap: '', dilisenseUsage: { month: '', count: 0 },
+    // Dirty-Check + dilisense-Kontingent + AML-Links
+    _formSnap: '', dilisenseUsage: { month: '', count: 0 }, amlLinks: {},
 
     // Busy-Flags
     screenBusy: false, secoBusy: false, diliBusy: false,
@@ -55,7 +55,7 @@ document.addEventListener('alpine:init', () => {
 
     async init() {
       this.settings = await window.api.settings.get();
-      this.theme = this.settings.theme || 'dark';
+      this.theme = this.settings.theme || 'light';
       this.applyTheme();
       this.fieldMap = await window.api.docx.fieldmap();
       await this.reload();
@@ -64,6 +64,7 @@ document.addEventListener('alpine:init', () => {
       this.appInfo = await window.api.app.info();
       this.amlReports = await window.api.aml.list();
       this.dilisenseUsage = await window.api.dilisense.usage();
+      this.amlLinks = await window.api.aml.links();
       window.api.screening.onProgress(d => { this.progress = d; });
       // App-Schliessen bei ungespeichertem Formular abfangen
       window.addEventListener('beforeunload', (e) => {
@@ -102,6 +103,24 @@ document.addEventListener('alpine:init', () => {
       const days = this.settings.screeningIntervalDays || 7;
       const cutoff = Date.now() - days * 86400000;
       return this.persons.filter(p => !p.lastScreenedAt || new Date(p.lastScreenedAt).getTime() < cutoff).length;
+    },
+    // KYC-Aktualisierung (VQF: Kundenprofile regelmässig überprüfen) — älter als 1 Jahr
+    kycStale(p) {
+      const ref = p.updatedAt || p.createdAt;
+      return ref ? (Date.now() - new Date(ref).getTime()) > 365 * 86400000 : false;
+    },
+    get staleKycCount() { return this.persons.filter(p => this.kycStale(p)).length; },
+    // AML↔KYC: GwG-pflichtige ATM-Kunden aus dem neuesten gespeicherten Report
+    get gwgCustomers() {
+      const latest = this.amlReportsSorted[0];
+      return (latest && latest.agg && latest.agg.gwgList) || [];
+    },
+    get gwgUnlinkedCount() {
+      return this.gwgCustomers.filter(c => !this.amlLinks[c.ref]).length;
+    },
+    personName(id) {
+      const p = this.persons.find(x => x.id === id);
+      return p ? (p.identity.displayName || '?') : '?';
     },
 
     // ── Theme ──
@@ -388,6 +407,29 @@ document.addEventListener('alpine:init', () => {
         if (!confirm('Das Formular hat ungespeicherte Änderungen. Ohne Speichern verlassen?')) return;
       }
       this.view = v;
+    },
+
+    // ── CSV-Export (DSG-Hinweis!) ──
+    async exportCsv() {
+      if (!confirm('Personenliste als CSV exportieren?\n\n⚠ DSG-Hinweis: Die Datei enthält Personendaten. Vor einer Weitergabe an Dritte muss die Zulässigkeit geklärt sein (Datenschutzgesetz).')) return;
+      try {
+        const r = await window.api.persons.exportCsv();
+        if (r.saved) this.showToast('ok', r.count + ' Person(en) exportiert: ' + r.path);
+      } catch (e) { this.showToast('danger', 'Export fehlgeschlagen: ' + e.message); }
+    },
+
+    // ── KYC-Dossier als PDF ──
+    async dossierPdf(p) {
+      try {
+        const r = await window.api.persons.dossierPdf(p.id);
+        if (r.saved) this.showToast('ok', 'Dossier gespeichert: ' + r.path);
+      } catch (e) { this.showToast('danger', 'Dossier fehlgeschlagen: ' + e.message); }
+    },
+
+    // ── AML↔KYC-Verknüpfung ──
+    async linkGwgCustomer(ref, personId) {
+      this.amlLinks = await window.api.aml.link(ref, personId || null);
+      this.showToast('ok', personId ? 'Kunde mit KYC-Dossier verknüpft.' : 'Verknüpfung entfernt.');
     },
 
     // ── Diverses ──
