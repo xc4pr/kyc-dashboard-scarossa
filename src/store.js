@@ -3,7 +3,7 @@
 // ─── Lokaler JSON-Datenspeicher ───────────────────────────────────────────────
 // Kein natives Modul (kein SQLite-Kompilieren) → läuft ohne Anpassung auf Linux
 // und Windows. Speicherort: userData. Verschlüsselung at rest via Electron
-// safeStorage (Windows: DPAPI, Linux: gnome-libsecret/kwallet) — DSG-konform.
+// safeStorage (Windows: DPAPI, Linux: gnome-libsecret/kwallet) - DSG-konform.
 // Ist keine sichere Verschlüsselung verfügbar, wird als Klartext gespeichert und
 // dies über encryptionAvailable() signalisiert.
 

@@ -126,7 +126,7 @@ document.addEventListener('alpine:init', () => {
       const cutoff = Date.now() - days * 86400000;
       return this.persons.filter(p => !p.lastScreenedAt || new Date(p.lastScreenedAt).getTime() < cutoff).length;
     },
-    // KYC-Aktualisierung (VQF: Kundenprofile regelmässig überprüfen) — älter als 1 Jahr
+    // KYC-Aktualisierung (VQF: Kundenprofile regelmässig überprüfen) - älter als 1 Jahr
     kycStale(p) {
       const ref = p.updatedAt || p.createdAt;
       return ref ? (Date.now() - new Date(ref).getTime()) > 365 * 86400000 : false;
@@ -216,7 +216,7 @@ document.addEventListener('alpine:init', () => {
         first.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(() => { try { first.focus(); } catch (_) {} }, 450);
       }
-      this.showToast('danger', missing.length + ' Pflichtfeld(er) fehlen — bitte rot markierte Felder ausfüllen.');
+      this.showToast('danger', missing.length + ' Pflichtfeld(er) fehlen - bitte rot markierte Felder ausfüllen.');
       return false;
     },
 
@@ -271,11 +271,11 @@ document.addEventListener('alpine:init', () => {
       for (const [tpl, title] of Object.entries(tpls)) {
         const rows = (this.fieldMap[tpl] || []).filter(f => f.data_key).map(f => {
           const v = expanded[f.data_key];
-          const val = f.type === 'checkbox' ? (v ? '☑' : '☐') : esc(String(v == null ? '' : v)) || '<span class="e">—</span>';
+          const val = f.type === 'checkbox' ? (v ? '☑' : '☐') : esc(String(v == null ? '' : v)) || '<span class="e">-</span>';
           const ctx = esc((f.context || f.data_key).slice(0, 90));
           return `<tr><td class="c">${ctx}</td><td>${val}</td></tr>`;
         }).join('');
-        body += `<h2>${tpl} — ${esc(title)}</h2><table>${rows}</table>`;
+        body += `<h2>${tpl} - ${esc(title)}</h2><table>${rows}</table>`;
       }
       return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
         body{font-family:Arial,sans-serif;font-size:12px;color:#1a1a1a;margin:14px}
@@ -285,7 +285,7 @@ document.addEventListener('alpine:init', () => {
         td.c{width:55%;color:#777}
         .e{color:#bbb}
       </style></head><body>
-      <p style="font-size:13px"><b>Kontroll-Vorschau</b> — diese Werte werden in die 4 VQF-Formulare eingetragen. Leere Felder bleiben im Dokument leer.</p>
+      <p style="font-size:13px"><b>Kontroll-Vorschau</b> - diese Werte werden in die 4 VQF-Formulare eingetragen. Leere Felder bleiben im Dokument leer.</p>
       ${body}</body></html>`;
     },
     async confirmExport() {
@@ -329,7 +329,7 @@ document.addEventListener('alpine:init', () => {
       try {
         await window.api.screening.clearHits(p.id, plain(keys));
         await this.reload();
-        this.showToast('ok', 'Als geprüft markiert — dieser Treffer wird nicht erneut gemeldet.');
+        this.showToast('ok', 'Als geprüft markiert - dieser Treffer wird nicht erneut gemeldet.');
       } catch (e) { this.showToast('danger', 'Fehler: ' + e.message); }
     },
     async screeningProof(p) {
@@ -345,7 +345,7 @@ document.addEventListener('alpine:init', () => {
       try {
         const r = await window.api.screening.person(id);
         await this.reload();
-        if (r.status === 'review') this.showToast('warn', 'Möglicher Treffer — bitte prüfen.');
+        if (r.status === 'review') this.showToast('warn', 'Möglicher Treffer - bitte prüfen.');
         else if (r.status === 'error') this.showToast('warn', r.summary);
         else this.showToast('ok', 'Keine Treffer.');
       } catch (e) { this.showToast('danger', 'Fehler: ' + e.message); }
@@ -525,7 +525,7 @@ document.addEventListener('alpine:init', () => {
     deltaBadge(i) {
       const list = this.amlReportsSorted;
       const cur = list[i], prev = list[i + 1];
-      if (!prev) return '<span class="muted small">—</span>';
+      if (!prev) return '<span class="muted small">-</span>';
       const d = cur.agg.kpis.totalVolume - prev.agg.kpis.totalVolume;
       const pct = prev.agg.kpis.totalVolume ? (d / prev.agg.kpis.totalVolume * 100) : 0;
       const up = d >= 0;
@@ -538,7 +538,7 @@ document.addEventListener('alpine:init', () => {
       const sign = int.startsWith('-') ? '-' : '';
       return sign + int.replace('-', '').replace(/\B(?=(\d{3})+(?!\d))/g, "'") + '.' + dec;
     },
-    fmtD(iso) { if (!iso) return '—'; const d = iso.slice(0, 10).split('-'); return d.length === 3 ? `${d[2]}.${d[1]}.${d[0]}` : iso; },
+    fmtD(iso) { if (!iso) return '-'; const d = iso.slice(0, 10).split('-'); return d.length === 3 ? `${d[2]}.${d[1]}.${d[0]}` : iso; },
     async loadUsage() { try { this.dilisenseUsage = await window.api.dilisense.usage(); } catch (_) {} },
 
     findDupLocal(data) {
@@ -602,7 +602,7 @@ document.addEventListener('alpine:init', () => {
       return '<span class="dot"></span>' + (m[s] || s);
     },
     geburt(iso) { return window.KYC.formatDate(iso) || iso || ''; },
-    fmtDate(iso) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString('de-CH'); } catch { return iso; } },
-    fmtDateTime(iso) { if (!iso) return '—'; try { return new Date(iso).toLocaleString('de-CH'); } catch { return iso; } }
+    fmtDate(iso) { if (!iso) return '-'; try { return new Date(iso).toLocaleDateString('de-CH'); } catch { return iso; } },
+    fmtDateTime(iso) { if (!iso) return '-'; try { return new Date(iso).toLocaleString('de-CH'); } catch { return iso; } }
   }));
 });

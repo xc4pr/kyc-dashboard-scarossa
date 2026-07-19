@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- CSP: kein unsafe-inline für Scripts, keine Play-Runtime. 'unsafe-eval' bleibt
-       einzig für Alpine.js (Expression-Auswertung) nötig — Tailwind ist statisch. -->
+       einzig für Alpine.js (Expression-Auswertung) nötig - Tailwind ist statisch. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src 'self' data:; connect-src 'self'; object-src 'none';" />
   <title>KYC-Dashboard Scarossa</title>
   <link rel="stylesheet" href="lib/tailwind.css" />
@@ -33,7 +33,7 @@
   <div class="modal-overlay" x-show="exportPreview" x-cloak @click.self="exportPreview = null">
     <div class="modal">
       <div class="modal-head">
-        <h3>Kontroll-Vorschau — 4 VQF-Formulare</h3>
+        <h3>Kontroll-Vorschau - 4 VQF-Formulare</h3>
         <span class="spacer" style="flex:1"></span>
         <button class="btn btn-ghost btn-sm" @click="exportPreview = null">✕ Schliessen</button>
         <button class="btn btn-primary btn-sm" @click="confirmExport()" :disabled="exporting">
@@ -75,10 +75,10 @@
     <div class="spacer" style="flex:1"></div>
 
     <span class="badge" :class="secoMeta.ready ? 'clear' : 'never'" :title="secoMeta.ready ? ('SECO-Liste vom ' + (secoMeta.listDate||'?')) : 'SECO-Liste nicht geladen'">
-      <span class="dot"></span> SECO <span x-text="secoMeta.ready ? '✓' : '—'"></span>
+      <span class="dot"></span> SECO <span x-text="secoMeta.ready ? '✓' : '-'"></span>
     </span>
     <span class="badge" :class="settings.dilisenseApiKey ? 'foreign' : 'never'" title="dilisense-Status">
-      <span class="dot"></span> dilisense <span x-text="settings.dilisenseApiKey ? '✓' : '—'"></span>
+      <span class="dot"></span> dilisense <span x-text="settings.dilisenseApiKey ? '✓' : '-'"></span>
     </span>
 
     <button class="icon-btn btn btn-ghost" @click="toggleTheme()" :title="theme==='dark' ? 'Zu Light-Mode' : 'Zu Dark-Mode'">
@@ -180,7 +180,7 @@
         <strong x-text="dueCount"></strong>&nbsp;Person(en) sind zur Prüfung fällig (Intervall <span x-text="settings.screeningIntervalDays"></span> Tage). Jetzt prüfen →
       </div>
       <div class="banner danger" x-show="reviewCount>0" style="cursor:pointer" @click="view='screening'">
-        ⚠ <strong x-text="reviewCount"></strong>&nbsp;Person(en) mit möglichem Sanktions-/PEP-Treffer — manuelle Prüfung erforderlich →
+        ⚠ <strong x-text="reviewCount"></strong>&nbsp;Person(en) mit möglichem Sanktions-/PEP-Treffer - manuelle Prüfung erforderlich →
       </div>
 
       <div class="tiles">
@@ -205,7 +205,7 @@
           </template>
           <template x-for="p in flaggedPersons.slice(0,6)" :key="p.id">
             <div class="kv" style="cursor:pointer" @click="openPerson(p.id); view='screening'">
-              <span class="k" x-text="p.identity.displayName || '—'"></span>
+              <span class="k" x-text="p.identity.displayName || '-'"></span>
               <span class="badge review"><span class="dot"></span> <span x-text="p.screeningSummary"></span></span>
             </div>
           </template>
@@ -214,7 +214,7 @@
           <h3>SECO-Sanktionsliste</h3>
           <p class="sub">Schweizer Embargo-Prüfung (lokal)</p>
           <div class="kv"><span class="k">Status</span><span x-html="secoMeta.ready ? '<span class=\'badge clear\'><span class=\'dot\'></span>geladen</span>' : '<span class=\'badge never\'><span class=\'dot\'></span>nicht geladen</span>'"></span></div>
-          <div class="kv"><span class="k">Listendatum</span><span x-text="secoMeta.listDate || '—'"></span></div>
+          <div class="kv"><span class="k">Listendatum</span><span x-text="secoMeta.listDate || '-'"></span></div>
           <div class="kv"><span class="k">Einträge</span><span x-text="(secoMeta.entryCount||0).toLocaleString('de-CH')"></span></div>
           <div class="kv"><span class="k">Zuletzt geladen</span><span x-text="fmtDateTime(secoMeta.lastDownload)"></span></div>
           <div style="margin-top:14px"><button class="btn btn-sm" @click="refreshSeco()" :disabled="secoBusy"><span x-text="secoBusy ? 'Lade…' : 'Jetzt aktualisieren'"></span></button></div>
@@ -258,8 +258,8 @@
                   <span class="badge foreign" x-show="p.foreign" style="margin-left:4px">Ausland</span>
                   <span class="badge review" x-show="kycStale(p)" style="margin-left:4px" title="KYC-Daten seit über 1 Jahr nicht aktualisiert (VQF: regelmässige Überprüfung)">KYC &gt; 1 Jahr</span>
                 </td>
-                <td x-text="p.identity.nationality || '—'"></td>
-                <td x-text="p.lastScreenedAt ? fmtDate(p.lastScreenedAt) : '—'"></td>
+                <td x-text="p.identity.nationality || '-'"></td>
+                <td x-text="p.lastScreenedAt ? fmtDate(p.lastScreenedAt) : '-'"></td>
                 <td><span class="badge" :class="p.screeningStatus" x-html="statusBadge(p.screeningStatus)"></span></td>
                 <td>
                   <div class="row-actions">
@@ -292,7 +292,7 @@
         ✓ Letzter Lauf: <span x-text="lastRun.checked"></span> geprüft, keine Treffer.
       </div>
       <div class="banner warn" x-show="!secoMeta.ready">
-        SECO-Liste noch nicht geladen — bitte oben „SECO aktualisieren" klicken, damit die Embargo-Prüfung greift.
+        SECO-Liste noch nicht geladen - bitte oben „SECO aktualisieren" klicken, damit die Embargo-Prüfung greift.
       </div>
 
       <h3 style="margin:6px 0 12px;font-size:15px">Personen mit möglichem Treffer (<span x-text="flaggedPersons.length"></span>)</h3>
@@ -315,7 +315,7 @@
           <hr class="sep" />
           <template x-if="p.screenings && p.screenings[0]">
             <div>
-              <div class="small muted" style="margin-bottom:8px">Geprüft am <span x-text="fmtDateTime(p.screenings[0].at)"></span> · Quellen: <span x-text="(p.screenings[0].sources||[]).join(', ')||'—'"></span></div>
+              <div class="small muted" style="margin-bottom:8px">Geprüft am <span x-text="fmtDateTime(p.screenings[0].at)"></span> · Quellen: <span x-text="(p.screenings[0].sources||[]).join(', ')||'-'"></span></div>
               <template x-for="(h,i) in p.screenings[0].hits" :key="i">
                 <div class="hit-card" :class="h.source_type==='SANCTION' && 'sanction'">
                   <div class="hn" x-text="h.name"></div>
@@ -395,7 +395,7 @@
       <!-- Prüfer + Upload -->
       <div class="card card-pad" style="margin-bottom:18px" x-show="!amlResult">
         <h3>Transaktions-CSV auswählen</h3>
-        <p class="sub">Export aus dem ATM-System (Lamassu/GeneralBytes). Wird lokal ausgewertet — nichts wird hochgeladen.</p>
+        <p class="sub">Export aus dem ATM-System (Lamassu). Wird lokal ausgewertet.</p>
         <div class="row2" style="margin-bottom:12px">
           <div class="field"><label>Prüfer / Revisionsstelle (für den Bericht)</label><input class="input" type="text" x-model="amlPruefer" placeholder="z. B. AML Revisions AG" /></div>
         </div>
@@ -410,7 +410,7 @@
       <template x-if="amlResult">
         <div>
           <div class="banner ok" style="margin-bottom:16px">
-            ✓ <span x-text="amlResult.records"></span> Transaktionen ausgewertet · Zeitraum <b x-text="fmtD(amlResult.agg.periodFrom)"></b> – <b x-text="fmtD(amlResult.agg.periodTo)"></b> · Quelle: <span x-text="amlResult.sourceFile || '—'"></span>
+            ✓ <span x-text="amlResult.records"></span> Transaktionen ausgewertet · Zeitraum <b x-text="fmtD(amlResult.agg.periodFrom)"></b> – <b x-text="fmtD(amlResult.agg.periodTo)"></b> · Quelle: <span x-text="amlResult.sourceFile || '-'"></span>
           </div>
           <div class="tiles">
             <div class="tile accent"><div class="k">Transaktionen</div><div class="v" x-text="amlResult.agg.kpis.completed"></div><div class="foot" x-text="amlResult.agg.kpis.cancelled + ' abgebrochen'"></div></div>
@@ -432,7 +432,7 @@
       <!-- AML↔KYC: identifikationspflichtige ATM-Kunden verknüpfen -->
       <div style="margin-top:22px" x-show="gwgCustomers.length">
         <h3 style="font-size:15px;margin-bottom:4px">GwG-pflichtige ATM-Kunden ↔ KYC-Dossiers</h3>
-        <p class="small muted" style="margin:0 0 10px">Aus der neuesten gespeicherten Auswertung. Jeder identifikationspflichtige Kunde braucht ein KYC-Dossier — Verknüpfung hier festhalten.</p>
+        <p class="small muted" style="margin:0 0 10px">Aus der neuesten gespeicherten Auswertung. Jeder identifikationspflichtige Kunde braucht ein KYC-Dossier - Verknüpfung hier festhalten.</p>
         <div class="table-wrap">
           <table class="data">
             <thead><tr><th>Kunden-Ref.</th><th>Tx</th><th>Höchste Tx (CHF)</th><th>Volumen (CHF)</th><th>KYC-Dossier</th><th>Status</th></tr></thead>
@@ -445,7 +445,7 @@
                   <td x-text="chf(c.volume)"></td>
                   <td>
                     <select class="select" style="min-width:180px;padding:6px 10px" :value="amlLinks[c.ref]||''" @change="linkGwgCustomer(c.ref, $event.target.value)">
-                      <option value="">— nicht verknüpft —</option>
+                      <option value="">- nicht verknüpft -</option>
                       <template x-for="p in persons" :key="p.id"><option :value="p.id" x-text="p.identity.displayName"></option></template>
                     </select>
                   </td>
@@ -520,8 +520,8 @@
                   <div class="row-sub" x-text="(p.identity.nationality || '') + (p.identity.dob ? ' · ' + geburt(p.identity.dob) : '')"></div>
                 </td>
                 <td><span class="badge tag" x-text="typLabel(p)"></span></td>
-                <td class="mono" x-text="(p.kyc && p.kyc.gwg_file_nr) || '—'"></td>
-                <td x-text="p.lastScreenedAt ? fmtDate(p.lastScreenedAt) : '—'"></td>
+                <td class="mono" x-text="(p.kyc && p.kyc.gwg_file_nr) || '-'"></td>
+                <td x-text="p.lastScreenedAt ? fmtDate(p.lastScreenedAt) : '-'"></td>
                 <td><span class="badge" :class="p.screeningStatus" x-html="statusBadge(p.screeningStatus)"></span></td>
                 <td><div class="row-actions">
                   <button class="btn btn-sm" @click="openPerson(p.id)">Öffnen</button>
@@ -605,7 +605,7 @@
       <div class="card card-pad" style="margin-bottom:18px">
         <h3>Screening-Rhythmus</h3>
         <div class="row2">
-          <div class="field"><label>Intervall (Tage) — Personen gelten danach als fällig</label>
+          <div class="field"><label>Intervall (Tage) - Personen gelten danach als fällig</label>
             <select class="select" x-model.number="settings.screeningIntervalDays">
               <option :value="3">Alle 3 Tage</option><option :value="7">Wöchentlich (empfohlen)</option><option :value="14">Zweiwöchentlich</option>
             </select>
@@ -619,7 +619,7 @@
 
       <div class="card card-pad" style="margin-bottom:18px">
         <h3>Automatischer Zeitplan (Betriebssystem)</h3>
-        <p class="sub">Prüft wöchentlich automatisch — auch wenn die App geschlossen ist (<span x-text="appInfo.platform==='win32' ? 'Windows-Aufgabenplanung' : 'systemd-Timer'"></span>). Bei Treffern erscheint eine System-Benachrichtigung.</p>
+        <p class="sub">Prüft wöchentlich automatisch - auch wenn die App geschlossen ist (<span x-text="appInfo.platform==='win32' ? 'Windows-Aufgabenplanung' : 'systemd-Timer'"></span>). Bei Treffern erscheint eine System-Benachrichtigung.</p>
         <div class="row2">
           <div class="field"><label>Wochentag</label>
             <select class="select" x-model="schedDay"><option value="Mon">Montag</option><option value="Tue">Dienstag</option><option value="Wed">Mittwoch</option><option value="Thu">Donnerstag</option><option value="Fri">Freitag</option></select>
@@ -635,9 +635,9 @@
 
       <div class="card card-pad">
         <h3>App & Daten</h3>
-        <div class="kv"><span class="k">Datenbank</span><span class="mono" x-text="appInfo.dbFile || '—'"></span></div>
+        <div class="kv"><span class="k">Datenbank</span><span class="mono" x-text="appInfo.dbFile || '-'"></span></div>
         <div class="kv"><span class="k">Verschlüsselung at rest</span>
-          <span x-html="appInfo.encrypted ? '<span class=\'badge clear\'><span class=\'dot\'></span>aktiv (safeStorage)</span>' : '<span class=\'badge review\'><span class=\'dot\'></span>nicht verfügbar — Klartext</span>'"></span>
+          <span x-html="appInfo.encrypted ? '<span class=\'badge clear\'><span class=\'dot\'></span>aktiv (safeStorage)</span>' : '<span class=\'badge review\'><span class=\'dot\'></span>nicht verfügbar - Klartext</span>'"></span>
         </div>
         <div class="kv"><span class="k">Archivierte Personen</span><span x-text="appInfo.archivedCount || 0"></span></div>
         <div class="kv"><span class="k">Electron / Node</span><span class="mono" x-text="(appInfo.versions?.electron||'')+' / '+(appInfo.versions?.node||'')"></span></div>

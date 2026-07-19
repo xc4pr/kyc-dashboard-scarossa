@@ -2,7 +2,7 @@
                >
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-            <h2 class="font-semibold text-brand text-sm tracking-wide">1 — Stammdaten</h2>
+            <h2 class="font-semibold text-brand text-sm tracking-wide">1 - Stammdaten</h2>
             <p class="text-gray-400 text-xs mt-0.5">Gemeinsame Angaben für alle 4 Formulare</p>
           </div>
           <div class="px-5 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -34,13 +34,13 @@
       </section>
 
       <!-- ══════════════════════════════════════════════════════
-           SEKTION 2 — VERTRAGSPARTEI
+           SEKTION 2 - VERTRAGSPARTEI
       ══════════════════════════════════════════════════════ -->
       <section id="sec-vertragspartei" class="section-content mb-8"
                >
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-            <h2 class="font-semibold text-brand text-sm tracking-wide">2 — Vertragspartei</h2>
+            <h2 class="font-semibold text-brand text-sm tracking-wide">2 - Vertragspartei</h2>
             <p class="text-gray-400 text-xs mt-0.5">Art der Vertragspartei bestimmt die erforderlichen Felder</p>
           </div>
           <div class="px-5 py-5">
@@ -260,14 +260,14 @@
       </section>
 
       <!-- ══════════════════════════════════════════════════════
-           SEKTION 3 — ERÖFFNER (nur JP)
+           SEKTION 3 - ERÖFFNER (nur JP)
       ══════════════════════════════════════════════════════ -->
       <section id="sec-eroeffner" class="section-content mb-8"
                >
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg flex items-center gap-3">
             <div>
-              <h2 class="font-semibold text-brand text-sm tracking-wide">3 — Eröffner der Geschäftsbeziehung</h2>
+              <h2 class="font-semibold text-brand text-sm tracking-wide">3 - Eröffner der Geschäftsbeziehung</h2>
               <p class="text-gray-400 text-xs mt-0.5">Nur relevant bei juristischen Personen</p>
             </div>
             <span x-show="data.vp_typ !== 'jp'"
@@ -468,13 +468,13 @@
       </section>
 
       <!-- ══════════════════════════════════════════════════════
-           SEKTION 4 — AUFNAHME GESCHÄFTSBEZIEHUNG (902.1)
+           SEKTION 4 - AUFNAHME GESCHÄFTSBEZIEHUNG (902.1)
       ══════════════════════════════════════════════════════ -->
       <section id="sec-aufnahme" class="section-content mb-8"
                >
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-            <h2 class="font-semibold text-brand text-sm tracking-wide">4 — Aufnahme der Geschäftsbeziehung (902.1)</h2>
+            <h2 class="font-semibold text-brand text-sm tracking-wide">4 - Aufnahme der Geschäftsbeziehung (902.1)</h2>
           </div>
           <div class="px-5 py-5 space-y-5">
 
@@ -588,19 +588,19 @@
       </section>
 
       <!-- ══════════════════════════════════════════════════════
-           SEKTION 5 — WIRTSCHAFTLICH BERECHTIGTER (WB)
+           SEKTION 5 - WIRTSCHAFTLICH BERECHTIGTER (WB)
       ══════════════════════════════════════════════════════ -->
       <section id="sec-wb" class="section-content mb-8"
                >
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-            <h2 class="font-semibold text-brand text-sm tracking-wide">5 — Wirtschaftlich Berechtigter / 902.9</h2>
+            <h2 class="font-semibold text-brand text-sm tracking-wide">5 - Wirtschaftlich Berechtigter / 902.9</h2>
           </div>
           <div class="px-5 py-5 space-y-5">
 
             <!-- Abschnitt A: WB-Typ (902.1 Checkboxen) -->
             <div>
-              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">A — WB-Typ (für Formular 902.1)</h3>
+              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">A - WB-Typ (für Formular 902.1)</h3>
               <div class="space-y-2">
                 <label class="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" x-model="data.wb_typ_np_selber" class="accent-brand w-4 h-4" />
@@ -632,7 +632,7 @@
             <!-- Abschnitt B: WB-Personalien (902.9) -->
             <div>
               <div class="flex items-center gap-3 mb-2 flex-wrap">
-                <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide">B — WB-Personalien (Formular 902.9)</h3>
+                <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide">B - WB-Personalien (Formular 902.9)</h3>
                 <button type="button" @click="copyVpToWb()" x-show="data.vp_typ === 'np'"
                         class="text-xs px-2.5 py-1 rounded border border-gray-300 text-gray-600 hover:border-brand hover:text-brand transition-colors">
                   ↧ Von Vertragspartei übernehmen
@@ -642,7 +642,7 @@
 
               <!-- Kürzung: VP ist selber WB → Daten werden automatisch übernommen -->
               <div class="mb-4 bg-blue-50 rounded px-4 py-2.5 text-sm text-blue-800" x-show="data.wb_typ_np_selber && data.vp_typ === 'np'" x-cloak>
-                Die Vertragspartei ist selber wirtschaftlich berechtigt — die Personalien wurden automatisch übernommen und müssen nicht erneut erfasst werden.
+                Die Vertragspartei ist selber wirtschaftlich berechtigt - die Personalien wurden automatisch übernommen und müssen nicht erneut erfasst werden.
               </div>
 
               <!-- Hinweis-Banner 902.9 -->
@@ -731,13 +731,13 @@
       </section>
 
       <!-- ══════════════════════════════════════════════════════
-           SEKTION 6 — RISIKOPROFIL (902.4)
+           SEKTION 6 - RISIKOPROFIL (902.4)
       ══════════════════════════════════════════════════════ -->
       <section id="sec-risikoprofil" class="section-content mb-8"
                >
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-            <h2 class="font-semibold text-brand text-sm tracking-wide">6 — Risikoprofil (902.4)</h2>
+            <h2 class="font-semibold text-brand text-sm tracking-wide">6 - Risikoprofil (902.4)</h2>
           </div>
           <div class="px-5 py-5 space-y-6">
 
@@ -1068,13 +1068,13 @@
       </section>
 
       <!-- ══════════════════════════════════════════════════════
-           SEKTION 7 — KUNDENPROFIL (902.5)
+           SEKTION 7 - KUNDENPROFIL (902.5)
       ══════════════════════════════════════════════════════ -->
       <section id="sec-kundenprofil" class="section-content mb-8"
                >
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-            <h2 class="font-semibold text-brand text-sm tracking-wide">7 — Kundenprofil (902.5)</h2>
+            <h2 class="font-semibold text-brand text-sm tracking-wide">7 - Kundenprofil (902.5)</h2>
           </div>
           <div class="px-5 py-5 space-y-4">
 
@@ -1188,13 +1188,13 @@
       </section>
 
       <!-- ══════════════════════════════════════════════════════
-           SEKTION 8 — DOKUMENT-CHECKLISTE (902.1)
+           SEKTION 8 - DOKUMENT-CHECKLISTE (902.1)
       ══════════════════════════════════════════════════════ -->
       <section id="sec-checkliste" class="section-content mb-8"
                >
         <div class="bg-white rounded-lg shadow-sm border border-gray-200">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-            <h2 class="font-semibold text-brand text-sm tracking-wide">8 — Dokument-Checkliste (902.1)</h2>
+            <h2 class="font-semibold text-brand text-sm tracking-wide">8 - Dokument-Checkliste (902.1)</h2>
             <p class="text-gray-400 text-xs mt-0.5">Kontrolle der beizulegenden Dokumente</p>
           </div>
           <div class="px-5 py-5">
@@ -1256,12 +1256,12 @@
       </section>
 
       <!-- ══════════════════════════════════════════════════════
-           ABSCHLUSS — Speichern & Export
+           ABSCHLUSS - Speichern & Export
       ══════════════════════════════════════════════════════ -->
       <div class="form-bottom-bar">
         <div class="fb-note">
           <span x-show="!validationErrors.length">Alle Angaben werden lokal &amp; verschlüsselt gespeichert.</span>
-          <span x-show="validationErrors.length" style="color:var(--danger)" x-text="validationErrors.length + ' Pflichtfeld(er) fehlen — rot markiert.'"></span>
+          <span x-show="validationErrors.length" style="color:var(--danger)" x-text="validationErrors.length + ' Pflichtfeld(er) fehlen - rot markiert.'"></span>
         </div>
         <div class="spacer" style="flex:1"></div>
         <button class="btn btn-ghost" @click="cancelForm()">Abbrechen</button>

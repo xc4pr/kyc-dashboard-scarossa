@@ -2,7 +2,7 @@
 
 // ─── Boot-Loader ──────────────────────────────────────────────────────────────
 // Lädt das Formular-Partial (Aufteilung des index.html-Monolithen) über IPC in
-// den Mount-Punkt und startet erst DANACH Alpine — so sieht Alpine beim
+// den Mount-Punkt und startet erst DANACH Alpine - so sieht Alpine beim
 // Initialisieren bereits den vollständigen DOM.
 
 (async () => {

@@ -24,7 +24,7 @@ async function screenPerson(person, settings) {
   const hits = [];
   const errors = [];
 
-  // 1) SECO — immer
+  // 1) SECO - immer
   if (seco.isReady()) {
     try {
       const secoHits = seco.screen(identity.screenName, { fuzzy });
@@ -34,10 +34,10 @@ async function screenPerson(person, settings) {
       errors.push('SECO: ' + e.message);
     }
   } else {
-    errors.push('SECO-Liste nicht geladen — bitte in Einstellungen aktualisieren.');
+    errors.push('SECO-Liste nicht geladen - bitte in Einstellungen aktualisieren.');
   }
 
-  // 2) dilisense — für Ausländer (oder wenn erzwungen), nur mit Key
+  // 2) dilisense - für Ausländer (oder wenn erzwungen), nur mit Key
   const useDili = person.foreign || settings.forceDilisense;
   if (useDili) {
     if (settings.dilisenseApiKey) {
@@ -49,7 +49,7 @@ async function screenPerson(person, settings) {
         errors.push('dilisense: ' + e.message);
       }
     } else {
-      errors.push('dilisense übersprungen — kein API-Key hinterlegt (Ausländer ungeprüft).');
+      errors.push('dilisense übersprungen - kein API-Key hinterlegt (Ausländer ungeprüft).');
     }
   }
 
@@ -71,7 +71,7 @@ async function screenPerson(person, settings) {
   else status = 'clear';
 
   const summary = newHits.length > 0
-    ? `${newHits.length} mögliche(r) Treffer — Prüfung nötig`
+    ? `${newHits.length} mögliche(r) Treffer - Prüfung nötig`
     : (hits.length > 0 ? `${hits.length} Treffer, alle als geprüft markiert`
       : (errors.length > 0 ? 'Unvollständig: ' + errors[0] : 'Keine Treffer'));
 

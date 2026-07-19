@@ -46,9 +46,9 @@ function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').r
 function renderScreeningProof(p) {
   const id = p.identity || {};
   const last = (p.screenings || [])[0];
-  const de = iso => { if (!iso) return '—'; try { return new Date(iso).toLocaleString('de-CH'); } catch { return iso; } };
-  const deDate = iso => { if (!iso) return '—'; const d = String(iso).slice(0, 10).split('-'); return d.length === 3 ? `${d[2]}.${d[1]}.${d[0]}` : iso; };
-  const statusText = { clear: 'Kein Treffer (unbedenklich)', review: 'Treffer — manuelle Prüfung nötig', error: 'Unvollständig', hit: 'Treffer', never: 'Nie geprüft' }[(last && last.status) || p.screeningStatus] || '—';
+  const de = iso => { if (!iso) return '-'; try { return new Date(iso).toLocaleString('de-CH'); } catch { return iso; } };
+  const deDate = iso => { if (!iso) return '-'; const d = String(iso).slice(0, 10).split('-'); return d.length === 3 ? `${d[2]}.${d[1]}.${d[0]}` : iso; };
+  const statusText = { clear: 'Kein Treffer (unbedenklich)', review: 'Treffer - manuelle Prüfung nötig', error: 'Unvollständig', hit: 'Treffer', never: 'Nie geprüft' }[(last && last.status) || p.screeningStatus] || '-';
   const hitsHtml = (last && last.hits && last.hits.length)
     ? last.hits.map(h => `<tr><td style="padding:5px 10px;border-bottom:1px solid #ddd;">${escHtml(h.name)}</td><td style="padding:5px 10px;border-bottom:1px solid #ddd;">${escHtml(h.source)} / ${escHtml(h.source_type || '')}</td><td style="padding:5px 10px;border-bottom:1px solid #ddd;">${escHtml((h.years || []).join(', '))}${h.dobMatch && h.dobMatch !== 'unknown' ? ' (' + (h.dobMatch === 'match' ? 'Jahr passt' : 'Jahr abweichend') + ')' : ''}</td><td style="padding:5px 10px;border-bottom:1px solid #ddd;">${h.cleared ? 'als False-Positive abgehakt' : 'offen'}</td></tr>`).join('')
     : '<tr><td colspan="4" style="padding:8px 10px;color:#1a7a3c;">Keine Treffer gegen die geprüften Listen.</td></tr>';
@@ -63,13 +63,13 @@ function renderScreeningProof(p) {
     .ok { background:#e9f8ee; color:#1a7a3c; } .warn { background:#fdeaea; color:#c0392b; }
     .foot { margin-top:26px; border-top:1px solid #ccc; padding-top:6px; font-size:8pt; color:#888; }
   </style></head><body>
-  <h1>Screening-Nachweis — Sanktions-/PEP-Prüfung</h1>
-  <div class="kv"><b>Person / Vertragspartei:</b> ${escHtml(id.displayName || '—')}</div>
+  <h1>Screening-Nachweis - Sanktions-/PEP-Prüfung</h1>
+  <div class="kv"><b>Person / Vertragspartei:</b> ${escHtml(id.displayName || '-')}</div>
   <div class="kv"><b>Geburtsdatum:</b> ${deDate(id.dob)}</div>
-  <div class="kv"><b>Nationalität:</b> ${escHtml(id.nationality || '—')}</div>
-  <div class="kv"><b>GwG-File-Nr.:</b> ${escHtml((p.kyc && p.kyc.gwg_file_nr) || '—')}</div>
+  <div class="kv"><b>Nationalität:</b> ${escHtml(id.nationality || '-')}</div>
+  <div class="kv"><b>GwG-File-Nr.:</b> ${escHtml((p.kyc && p.kyc.gwg_file_nr) || '-')}</div>
   <div class="kv"><b>Geprüft am:</b> ${de(last && last.at)}</div>
-  <div class="kv"><b>Geprüfte Quellen:</b> ${escHtml((last && last.sources || []).join(', ') || '—')}</div>
+  <div class="kv"><b>Geprüfte Quellen:</b> ${escHtml((last && last.sources || []).join(', ') || '-')}</div>
   <div class="kv"><b>SECO-Listenstand:</b> ${deDate(last && last.secoListDate)}</div>
   <div class="status ${(last && last.status) === 'clear' ? 'ok' : 'warn'}">Ergebnis: ${statusText}</div>
   <table><tr><th>Treffername</th><th>Quelle</th><th>Geburtsjahr(e)</th><th>Status</th></tr>${hitsHtml}</table>
@@ -81,8 +81,8 @@ function renderScreeningProof(p) {
 // KYC-Dossier (A4 hoch): alle erfassten Daten strukturiert als PDF
 function renderKycDossier(p) {
   const d = p.kyc || {}, id = p.identity || {};
-  const deDate = iso => { if (!iso) return '—'; const x = String(iso).slice(0, 10).split('-'); return x.length === 3 ? `${x[2]}.${x[1]}.${x[0]}` : iso; };
-  const v = x => escHtml(x || '—');
+  const deDate = iso => { if (!iso) return '-'; const x = String(iso).slice(0, 10).split('-'); return x.length === 3 ? `${x[2]}.${x[1]}.${x[0]}` : iso; };
+  const v = x => escHtml(x || '-');
   const yn = b => b ? 'Ja' : 'Nein';
   const row = (label, val) => `<tr><td class="l">${escHtml(label)}</td><td>${val}</td></tr>`;
   const sec = (title, rows) => rows.filter(Boolean).length
@@ -120,20 +120,20 @@ function renderKycDossier(p) {
     td.l { width: 220px; color:#555; font-weight: bold; }
     .foot { margin-top:26px; border-top:1px solid #ccc; padding-top:6px; font-size:8pt; color:#888; }
   </style></head><body>
-  <h1>KYC-Dossier — ${escHtml(id.displayName || '')}</h1>
-  <div class="sub">GwG-File ${escHtml(d.gwg_file_nr || '—')} · VQF ${escHtml(d.vqf_mitglied_nr || '—')} · Erfasst von ${escHtml(d.filler_name || '—')} am ${deDate(d.filler_datum)}</div>
+  <h1>KYC-Dossier - ${escHtml(id.displayName || '')}</h1>
+  <div class="sub">GwG-File ${escHtml(d.gwg_file_nr || '-')} · VQF ${escHtml(d.vqf_mitglied_nr || '-')} · Erfasst von ${escHtml(d.filler_name || '-')} am ${deDate(d.filler_datum)}</div>
   ${sec('Vertragspartei', vpRows)}
   ${sec('Aufnahme der Geschäftsbeziehung', [
     row('Vertragsschluss', deDate(d.vertragsschluss_datum)),
-    row('Aufnahmeart', escHtml([d.aufnahme_persoenlich && 'Persönlich', d.aufnahme_korrespondenz && 'Korrespondenz'].filter(Boolean).join(', ') || '—')),
+    row('Aufnahmeart', escHtml([d.aufnahme_persoenlich && 'Persönlich', d.aufnahme_korrespondenz && 'Korrespondenz'].filter(Boolean).join(', ') || '-')),
     row('Embargo-Prüfung', v(d.embargo_pruefung_resultat)),
     d.weiteres ? row('Weiteres', v(d.weiteres)) : null])}
   ${sec('Wirtschaftlich Berechtigter', [
     row('Name, Vorname', v([d.wb_name, d.wb_vorname].filter(Boolean).join(', '))),
-    row('Geburtsdatum / Nationalität', escHtml([deDate(d.wb_geburtsdatum), d.wb_nationalitaet].filter(x => x && x !== '—').join(' / ') || '—')),
+    row('Geburtsdatum / Nationalität', escHtml([deDate(d.wb_geburtsdatum), d.wb_nationalitaet].filter(x => x && x !== '-').join(' / ') || '-')),
     row('Wohnsitz', v([d.wb_strasse, [d.wb_plz, d.wb_ort].filter(Boolean).join(' ')].filter(Boolean).join(', ')))])}
   ${sec('Risikoprofil (902.4)', [
-    row('PEP', pepJa ? 'JA — PEP-Bezug vorhanden' : 'Nein'),
+    row('PEP', pepJa ? 'JA - PEP-Bezug vorhanden' : 'Nein'),
     row('High-Risk-Land', d.high_risk_ja ? 'Ja' : 'Nein'),
     row('Risikoklassifizierung', escHtml(risiko)),
     d.risiko_begruendung_abweichend ? row('Begründung', v(d.risiko_begruendung_abweichend)) : null])}
@@ -145,8 +145,8 @@ function renderKycDossier(p) {
     d.kp_sonstiges ? row('Sonstiges', v(d.kp_sonstiges)) : null])}
   ${sec('Screening-Status', [
     row('Letzte Prüfung', p.lastScreenedAt ? new Date(p.lastScreenedAt).toLocaleString('de-CH') : 'Nie'),
-    row('Ergebnis', escHtml(p.screeningSummary || '—'))])}
-  <div class="foot">KYC-Dossier · automatisch erzeugt · KYC-Dashboard Scarossa · ${new Date().toLocaleString('de-CH')} — Vertraulich (DSG)</div>
+    row('Ergebnis', escHtml(p.screeningSummary || '-'))])}
+  <div class="foot">KYC-Dossier · automatisch erzeugt · KYC-Dashboard Scarossa · ${new Date().toLocaleString('de-CH')} - Vertraulich (DSG)</div>
   </body></html>`;
 }
 
@@ -154,7 +154,7 @@ function renderKycDossier(p) {
 async function runHeadlessScreening() {
   // Nicht gleichzeitig mit offener GUI in dieselbe DB schreiben (Datenintegrität)
   if (!app.requestSingleInstanceLock()) {
-    console.log('GUI-Instanz läuft — Headless-Screening übersprungen.');
+    console.log('GUI-Instanz läuft - Headless-Screening übersprungen.');
     app.quit();
     return;
   }
@@ -175,7 +175,7 @@ async function runHeadlessScreening() {
   if (Notification.isSupported()) {
     let body;
     if (flagged.length > 0) {
-      body = `${flagged.length} Person(en) mit möglichem Treffer — bitte im Dashboard prüfen.`;
+      body = `${flagged.length} Person(en) mit möglichem Treffer - bitte im Dashboard prüfen.`;
     } else if (res.checked === 0) {
       body = 'Keine fälligen Personen.';
     } else {
@@ -222,7 +222,7 @@ function createWindow() {
       }, 2600);
     });
   }
-  // Dev: Test-Formulare erzeugen (KYC_MAKETEST=<zielordner>) — nutzt die echte
+  // Dev: Test-Formulare erzeugen (KYC_MAKETEST=<zielordner>) - nutzt die echte
   // DOCX-Befüllung im Renderer und schreibt fertige Export-ZIPs.
   if (process.env.KYC_MAKETEST) {
     win.webContents.on('did-finish-load', () => {
@@ -271,7 +271,7 @@ function createWindow() {
       }, 2800);
     });
   }
-  // Dev: E2E-/Bug-Bounty-Suite (KYC_E2E) — fährt Nutzer-Szenarien in der echten App.
+  // Dev: E2E-/Bug-Bounty-Suite (KYC_E2E) - fährt Nutzer-Szenarien in der echten App.
   if (process.env.KYC_E2E) {
     win.webContents.on('did-finish-load', () => {
       setTimeout(async () => {
@@ -283,7 +283,7 @@ function createWindow() {
       }, 2800);
     });
   }
-  // Dev: IPC-Clone-Grenze testen (Alpine-Proxy → plain) — nur KYC_CLONETEST.
+  // Dev: IPC-Clone-Grenze testen (Alpine-Proxy → plain) - nur KYC_CLONETEST.
   if (process.env.KYC_CLONETEST) {
     win.webContents.on('did-finish-load', () => {
       setTimeout(async () => {
@@ -439,7 +439,7 @@ function registerIpc() {
   ipcMain.handle('scheduler:install', (_e, opts) => scheduler.install(app, opts || {}));
   ipcMain.handle('scheduler:remove', () => scheduler.remove());
 
-  // DOCX-Vorlagen für den Renderer — nur Whitelist (kein Path-Traversal)
+  // DOCX-Vorlagen für den Renderer - nur Whitelist (kein Path-Traversal)
   const ALLOWED_TEMPLATES = ['902.1.docx', '902.4.docx', '902.5.docx', '902.9.docx'];
   ipcMain.handle('docx:template', (_e, name) => {
     if (!ALLOWED_TEMPLATES.includes(name)) throw new Error('Unbekannte Vorlage: ' + name);
@@ -473,7 +473,7 @@ function registerIpc() {
     }
     const records = aml.parseCsv(text);
     const agg = aml.analyze(records);
-    if (!agg) throw new Error('CSV nicht erkannt — bitte Transaktions-Export (Lamassu-Format) verwenden.');
+    if (!agg) throw new Error('CSV nicht erkannt - bitte Transaktions-Export (Lamassu-Format) verwenden.');
     const html = aml.renderReport(agg, { pruefer: p.pruefer });
     return { agg, html, records: records.length, sourceFile: p.name || (p.path ? path.basename(p.path) : '') };
   });
@@ -497,7 +497,7 @@ function registerIpc() {
   // Archiv (aufbewahrte, "gelöschte" Personen)
   ipcMain.handle('persons:archived', () => store.listArchived());
 
-  // HTML-Partial laden (Aufteilung des Renderer-Monolithen) — Whitelist
+  // HTML-Partial laden (Aufteilung des Renderer-Monolithen) - Whitelist
   const ALLOWED_PARTIALS = ['form-sections.html'];
   ipcMain.handle('app:partial', (_e, name) => {
     if (!ALLOWED_PARTIALS.includes(name)) throw new Error('Unbekanntes Partial: ' + name);
@@ -587,7 +587,7 @@ if (process.argv.includes('--amltest')) {
       initData();
       registerIpc();
       createWindow();
-      // Auto-Update (GitHub Releases). Fehler still ignorieren — z. B. wenn
+      // Auto-Update (GitHub Releases). Fehler still ignorieren - z. B. wenn
       // (noch) kein Release veröffentlicht ist oder offline.
       if (app.isPackaged) {
         try {
@@ -595,7 +595,7 @@ if (process.argv.includes('--amltest')) {
           autoUpdater.autoDownload = true;
           autoUpdater.on('update-downloaded', (info) => {
             if (Notification.isSupported()) {
-              new Notification({ title: 'KYC-Dashboard', body: 'Update ' + info.version + ' bereit — wird beim nächsten Schliessen installiert.' }).show();
+              new Notification({ title: 'KYC-Dashboard', body: 'Update ' + info.version + ' bereit - wird beim nächsten Schliessen installiert.' }).show();
             }
           });
           autoUpdater.checkForUpdatesAndNotify().catch(() => {});

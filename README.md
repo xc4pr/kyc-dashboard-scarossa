@@ -4,7 +4,7 @@ Desktop-App für **VQF/GwG-Compliance**: zentrale Personendatenbank, automatisie
 Sanktions-/PEP-Screening und Generierung der vier VQF-Formulare (902.1, 902.4, 902.5, 902.9).
 
 Läuft als installierbare Desktop-App auf **Linux** und **Windows 10/11** (Electron).
-Alle Daten bleiben lokal auf dem Gerät — kein Server, keine Cloud.
+Alle Daten werden lokal auf dem Gerät verarbeitet und gespeichert.
 
 ---
 
@@ -13,10 +13,10 @@ Alle Daten bleiben lokal auf dem Gerät — kein Server, keine Cloud.
 | Bereich | v1 (HTML-Webapp) | v2 (Desktop-App) |
 |---|---|---|
 | Datenhaltung | 1 Entwurf im Browser | **Datenbank aller KYC-Personen** (lokal, durchsuchbar) |
-| Screening | — | **SECO** (Schweizer Embargo) + **dilisense** (int. Sanktionen/PEP) |
-| Automatik | — | **Wöchentliches Auto-Screening** (OS-Zeitplan + beim Start) |
-| Import | — | **Drag & Drop** bestehender Formulare (.docx/.zip) → Datenbank |
-| AML-Report | — | **Bitcoin-ATM-Auswertung**: CSV → Revisionsbericht (PDF) + Jahresvergleich |
+| Screening | - | **SECO** (Schweizer Embargo) + **dilisense** (int. Sanktionen/PEP) |
+| Automatik | - | **Wöchentliches Auto-Screening** (OS-Zeitplan + beim Start) |
+| Import | - | **Drag & Drop** bestehender Formulare (.docx/.zip) → Datenbank |
+| AML-Report | - | **Bitcoin-ATM-Auswertung**: CSV → Revisionsbericht (PDF) + Jahresvergleich |
 | Oberfläche | hell | **Modernes Bitcoin/Finance-Theme, Light + Dark** |
 | DOCX-Export | ✓ | ✓ (übernommen) |
 
@@ -26,7 +26,7 @@ Alle Daten bleiben lokal auf dem Gerät — kein Server, keine Cloud.
 
 Fertige Installer werden mit `npm run dist` erzeugt (Ordner `release/`):
 
-- **Windows:** `KYC-Dashboard Scarossa Setup x.y.z.exe` — doppelklicken, installieren, fertig.
+- **Windows:** `KYC-Dashboard Scarossa Setup x.y.z.exe` - doppelklicken, installieren, fertig.
 - **Linux:** `.AppImage` (ausführbar machen, starten) oder `.deb` (`sudo dpkg -i …`).
 
 Beim ersten Start:
@@ -54,7 +54,7 @@ npm run dist         # Installer für Linux + Windows bauen → release/
 
 ```
 main.js              Electron-Hauptprozess: Fenster, IPC, Headless-Screening
-preload.js           Sichere Bridge (window.api.*) — contextIsolation
+preload.js           Sichere Bridge (window.api.*) - contextIsolation
 src/
   store.js           Lokale JSON-Datenbank (Personen, Einstellungen) in userData
   seco.js            SECO-XML laden, zu Suchindex parsen, lokal abgleichen
@@ -68,7 +68,7 @@ renderer/
   ui.js              Alpine.js-App (Views, DB-Aufrufe, Screening)
   docx.js            DOCX-Befüllung (aus v1 übernommen)
   lib/               jszip, alpine, tailwind (lokal, offline)
-templates/           VQF-Vorlagen (902.1/4/5/9.docx) — nicht bearbeiten
+templates/           VQF-Vorlagen (902.1/4/5/9.docx) - nicht bearbeiten
 field-map.json       Feld-Mapping der Vorlagen
 scripts/, tests/     Werkzeuge zur Pflege des Feld-Mappings (Python)
 ```
@@ -111,5 +111,5 @@ Methodik: abgeschlossen = Status `Sent`/`Success`, Kunde = `customerId`, Betrag 
 ## Datenschutz
 
 Personendaten und der dilisense-Key liegen ausschliesslich lokal im Benutzerprofil
-(`userData`). Es werden nur die Sanktionslisten von SECO/dilisense abgerufen — es werden
+(`userData`). Es werden nur die Sanktionslisten von SECO/dilisense abgerufen - es werden
 keine KYC-Daten an Dritte übertragen (dilisense erhält nur den zu prüfenden Namen).

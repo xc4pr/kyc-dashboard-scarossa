@@ -165,10 +165,10 @@ function analyze(records) {
 // ── Bericht (HTML, A4 quer) ───────────────────────────────────────────────────
 function renderReport(a, meta) {
   meta = meta || {};
-  const pruefer = esc(meta.pruefer || '—');
+  const pruefer = esc(meta.pruefer || '-');
   const erstellt = deDate(new Date().toISOString());
   const zeitraum = `${deDate(a.periodFrom)} – ${deDate(a.periodTo)}`;
-  const geraete = a.machines.map(m => esc(m.name)).join(' &nbsp;|&nbsp; ') || '—';
+  const geraete = a.machines.map(m => esc(m.name)).join(' &nbsp;|&nbsp; ') || '-';
 
   const kpiBox = (val, label, color) =>
     `<td width="25%" style="padding:12px 14px;border:1px solid #b8cce0;background:#f4f8fd;vertical-align:top;">
