@@ -51,6 +51,12 @@ document.addEventListener('alpine:init', () => {
     // Dirty-Check + dilisense-Kontingent + AML-Links
     _formSnap: '', dilisenseUsage: { month: '', count: 0 }, amlLinks: {},
 
+    // Validierung, WB-Übernahme, Export-Vorschau, dilisense-Vorschlag, DB-Verwaltung
+    validationErrors: [], wbCopied: false,
+    exportPreview: null,
+    diliSuggest: false, _diliDismissed: false,
+    dbManage: false, selPersons: {}, selReports: {},
+
     // Busy-Flags
     screenBusy: false, secoBusy: false, diliBusy: false,
     progress: { done: 0, total: 0 },
@@ -73,6 +79,18 @@ document.addEventListener('alpine:init', () => {
       // App-Schliessen bei ungespeichertem Formular abfangen
       window.addEventListener('beforeunload', (e) => {
         if (this.isFormDirty()) { e.preventDefault(); e.returnValue = ''; }
+      });
+
+      // Nicht-CH-Bürgerschaft erkannt → dilisense-Screening vorschlagen
+      this.$watch('data.np_staatsangehoerigkeit', (v) => {
+        clearTimeout(this._diliT);
+        this._diliT = setTimeout(() => {
+          this.diliSuggest = this.isNonSwiss(v) && !this.foreign && !this._diliDismissed;
+        }, 700);
+      });
+      // VP ist selber WB → Personalien automatisch übernehmen (Kürzung)
+      this.$watch('data.wb_typ_np_selber', (on) => {
+        if (on && this.data.vp_typ === 'np') this.copyVpToWb(true);
       });
 
       // Auto-Screening beim Start: nur fällige Personen (throttelt sich selbst
@@ -137,12 +155,19 @@ document.addEventListener('alpine:init', () => {
     applyTheme() { document.documentElement.setAttribute('data-theme', this.theme); },
 
     // ── Formular / Personen ──
-    newPerson() {
-      this.data = window.KYC.defaultData();
-      this.foreign = false;
-      this.currentPersonId = null;
+    _resetFormState() {
       this.activeSection = 'stammdaten';
       this.exportError = null;
+      this.validationErrors = [];
+      this.diliSuggest = false; this._diliDismissed = false; this.wbCopied = false;
+      document.querySelectorAll('.invalid').forEach(el => el.classList.remove('invalid'));
+    },
+    newPerson() {
+      this.data = window.KYC.defaultData();
+      this.data.filler_datum = new Date().toISOString().slice(0, 10);   // Default: heute
+      this.foreign = false;
+      this.currentPersonId = null;
+      this._resetFormState();
       this._formSnap = this.snapForm();
       this.view = 'form';
     },
@@ -152,36 +177,160 @@ document.addEventListener('alpine:init', () => {
       this.data = Object.assign(window.KYC.defaultData(), p.kyc || {});
       this.foreign = !!p.foreign;
       this.currentPersonId = p.id;
-      this.activeSection = 'stammdaten';
-      this.exportError = null;
+      this._resetFormState();
       this._formSnap = this.snapForm();
       this.view = 'form';
     },
     cancelForm() { this.view = this.currentPersonId ? 'persons' : 'dashboard'; },
     KYCname() { return window.KYC.vpName(this.data); },
 
+    // ── Pflichtfeld-Validierung: rot markieren + zum ersten Fehler scrollen ──
+    requiredFields() {
+      const base = ['filler_name', 'filler_datum', 'gwg_file_nr'];
+      if (this.data.vp_typ === 'np') return base.concat(['np_vorname', 'np_name', 'np_geburtsdatum', 'np_staatsangehoerigkeit', 'np_strasse', 'np_plz', 'np_ort']);
+      if (this.data.vp_typ === 'eu') return base.concat(['eu_firma', 'eu_strasse', 'eu_plz', 'eu_ort']);
+      if (this.data.vp_typ === 'jp') return base.concat(['jp_firma', 'jp_strasse', 'jp_plz', 'jp_ort']);
+      return base;
+    },
+    fieldLabel(key) {
+      const el = document.querySelector(`[x-model="data.${key}"]`);
+      const lab = el && el.closest('div') && el.closest('div').querySelector('label');
+      return (lab && lab.textContent.trim()) || key;
+    },
+    validateForm() {
+      document.querySelectorAll('.invalid').forEach(el => el.classList.remove('invalid'));
+      const missing = this.requiredFields().filter(k => {
+        const v = this.data[k];
+        return v === undefined || v === null || String(v).trim() === '';
+      });
+      this.validationErrors = missing.map(k => this.fieldLabel(k));
+      if (!missing.length) return true;
+      let first = null;
+      for (const k of missing) {
+        const el = document.querySelector(`[x-model="data.${k}"]`);
+        if (el) { el.classList.add('invalid'); if (!first) first = el; }
+      }
+      if (first) {
+        const sec = first.closest('section');
+        if (sec && sec.id.startsWith('sec-')) this.activeSection = sec.id.slice(4);
+        first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => { try { first.focus(); } catch (_) {} }, 450);
+      }
+      this.showToast('danger', missing.length + ' Pflichtfeld(er) fehlen — bitte rot markierte Felder ausfüllen.');
+      return false;
+    },
+
     async savePerson() {
-      if (!this.KYCname()) { this.showToast('warn', 'Bitte mindestens Name oder Firma der Vertragspartei erfassen.'); return; }
-      const rec = await window.api.persons.save(plain({ id: this.currentPersonId, kyc: this.data, foreign: this.foreign }));
-      this.currentPersonId = rec.id;
-      this._formSnap = this.snapForm();   // gespeichert → nicht mehr dirty
+      if (this._saving) return;           // Doppelklick-Schutz (sonst 2 Personen)
+      if (!this.validateForm()) return;
+      this._saving = true;
+      try {
+        const rec = await window.api.persons.save(plain({ id: this.currentPersonId, kyc: this.data, foreign: this.foreign }));
+        this.currentPersonId = rec.id;
+        this._formSnap = this.snapForm();   // gespeichert → nicht mehr dirty
+        await this.reload();
+        this.showToast('ok', 'Person gespeichert: ' + (rec.identity.displayName || ''));
+        this.view = 'persons';
+      } catch (e) {
+        this.showToast('danger', 'Speichern fehlgeschlagen: ' + e.message);
+      } finally { this._saving = false; }
+    },
+
+    // ── WB-Personalien von der Vertragspartei übernehmen (Kürzung) ──
+    copyVpToWb(auto) {
+      const d = this.data;
+      if (d.vp_typ !== 'np') return;
+      d.wb_name = d.np_name; d.wb_vorname = d.np_vorname;
+      d.wb_geburtsdatum = d.np_geburtsdatum; d.wb_nationalitaet = d.np_staatsangehoerigkeit;
+      d.wb_strasse = d.np_strasse; d.wb_plz = d.np_plz; d.wb_ort = d.np_ort;
+      this.wbCopied = true;
+      if (!auto) this.showToast('ok', 'WB-Personalien von der Vertragspartei übernommen.');
+      clearTimeout(this._wbT); this._wbT = setTimeout(() => this.wbCopied = false, 4000);
+    },
+
+    // ── dilisense-Vorschlag bei Nicht-CH-Bürgerschaft ──
+    isNonSwiss(nat) {
+      const n = (nat || '').toLowerCase().trim();
+      if (!n) return false;
+      return !/(^|[\s,/])(schweiz|schweizerin?|switzerland|swiss|ch)($|[\s,/.])/.test(n);
+    },
+    acceptDili() { this.foreign = true; this.diliSuggest = false; this.showToast('ok', 'dilisense-Screening für diese Person aktiviert.'); },
+    dismissDili() { this.diliSuggest = false; this._diliDismissed = true; },
+
+    // ── Export-Vorschau: alle 4 Dokumente mit den einzutragenden Werten ──
+    openExportPreview() {
+      if (!this.validateForm()) return;
+      try { this.exportPreview = this.buildPreviewHtml(); }
+      catch (e) { this.showToast('danger', 'Vorschau fehlgeschlagen: ' + e.message); }
+    },
+    buildPreviewHtml() {
+      const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const expanded = window.KYC.expandRadio(plain(this.data));
+      const tpls = { '902.1': 'Identifizierungsformular', '902.4': 'Risikoprofil GwG', '902.5': 'Kundenprofil', '902.9': 'Wirtschaftlich Berechtigter (A)' };
+      let body = '';
+      for (const [tpl, title] of Object.entries(tpls)) {
+        const rows = (this.fieldMap[tpl] || []).filter(f => f.data_key).map(f => {
+          const v = expanded[f.data_key];
+          const val = f.type === 'checkbox' ? (v ? '☑' : '☐') : esc(String(v == null ? '' : v)) || '<span class="e">—</span>';
+          const ctx = esc((f.context || f.data_key).slice(0, 90));
+          return `<tr><td class="c">${ctx}</td><td>${val}</td></tr>`;
+        }).join('');
+        body += `<h2>${tpl} — ${esc(title)}</h2><table>${rows}</table>`;
+      }
+      return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+        body{font-family:Arial,sans-serif;font-size:12px;color:#1a1a1a;margin:14px}
+        h2{font-size:13px;color:#fff;background:#1a1714;padding:6px 10px;margin:18px 0 0}
+        table{border-collapse:collapse;width:100%;font-size:11.5px}
+        td{padding:4px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top}
+        td.c{width:55%;color:#777}
+        .e{color:#bbb}
+      </style></head><body>
+      <p style="font-size:13px"><b>Kontroll-Vorschau</b> — diese Werte werden in die 4 VQF-Formulare eingetragen. Leere Felder bleiben im Dokument leer.</p>
+      ${body}</body></html>`;
+    },
+    async confirmExport() {
+      this.exportPreview = null;
+      await this.doExport();
+    },
+
+    // ── Datenbank-Verwaltung (versteckte Löschfunktion) ──
+    get selPersonCount() { return Object.values(this.selPersons).filter(Boolean).length; },
+    get selReportCount() { return Object.values(this.selReports).filter(Boolean).length; },
+    async deleteSelectedPersons() {
+      const ids = Object.keys(this.selPersons).filter(k => this.selPersons[k]);
+      if (!ids.length) return;
+      if (!confirm(ids.length + ' Person(en) archivieren?\n\nSie verschwinden aus der aktiven Liste, bleiben aber wegen der GwG-Aufbewahrungspflicht (10 Jahre) im Archiv erhalten.')) return;
+      for (const id of ids) await window.api.persons.remove(id);
+      this.selPersons = {};
       await this.reload();
-      this.showToast('ok', 'Person gespeichert: ' + (rec.identity.displayName || ''));
-      this.view = 'persons';
+      this.showToast('ok', ids.length + ' Person(en) archiviert.');
+    },
+    async deleteSelectedReports() {
+      const ids = Object.keys(this.selReports).filter(k => this.selReports[k]);
+      if (!ids.length) return;
+      if (!confirm(ids.length + ' AML-Auswertung(en) endgültig löschen?')) return;
+      for (const id of ids) await window.api.aml.remove(id);
+      this.selReports = {};
+      await this.amlLoadList();
+      this.showToast('ok', ids.length + ' Auswertung(en) gelöscht.');
     },
     async deletePerson(p) {
       if (!confirm('Person „' + (p.identity.displayName || '') + '" archivieren?\n\nSie wird aus der aktiven Liste entfernt, aber wegen der GwG-Aufbewahrungspflicht (10 Jahre) im Archiv aufbewahrt.')) return;
-      await window.api.persons.remove(p.id);
-      await this.reload();
-      this.showToast('ok', 'Person archiviert (aufbewahrt).');
+      try {
+        await window.api.persons.remove(p.id);
+        await this.reload();
+        this.showToast('ok', 'Person archiviert (aufbewahrt).');
+      } catch (e) { this.showToast('danger', 'Archivieren fehlgeschlagen: ' + e.message); }
     },
     async clearReview(p) {
       // Aktuelle Treffer als False-Positive merken → beim nächsten Lauf nicht neu flaggen
       const last = (p.screenings || [])[0];
       const keys = last && last.hits ? last.hits.map(h => h.key).filter(Boolean) : [];
-      await window.api.screening.clearHits(p.id, plain(keys));
-      await this.reload();
-      this.showToast('ok', 'Als geprüft markiert — dieser Treffer wird nicht erneut gemeldet.');
+      try {
+        await window.api.screening.clearHits(p.id, plain(keys));
+        await this.reload();
+        this.showToast('ok', 'Als geprüft markiert — dieser Treffer wird nicht erneut gemeldet.');
+      } catch (e) { this.showToast('danger', 'Fehler: ' + e.message); }
     },
     async screeningProof(p) {
       try {
@@ -257,6 +406,7 @@ document.addEventListener('alpine:init', () => {
 
     // ── DOCX-Export (Formular) ──
     async doExport() {
+      if (this.exporting) return;         // Doppelklick-Schutz
       this.exporting = true; this.exportError = null;
       try {
         const r = await window.KYC.exportAll(this.data, this.fieldMap);
@@ -432,8 +582,10 @@ document.addEventListener('alpine:init', () => {
 
     // ── AML↔KYC-Verknüpfung ──
     async linkGwgCustomer(ref, personId) {
-      this.amlLinks = await window.api.aml.link(ref, personId || null);
-      this.showToast('ok', personId ? 'Kunde mit KYC-Dossier verknüpft.' : 'Verknüpfung entfernt.');
+      try {
+        this.amlLinks = await window.api.aml.link(ref, personId || null);
+        this.showToast('ok', personId ? 'Kunde mit KYC-Dossier verknüpft.' : 'Verknüpfung entfernt.');
+      } catch (e) { this.showToast('danger', 'Verknüpfung fehlgeschlagen: ' + e.message); }
     },
 
     // ── Diverses ──

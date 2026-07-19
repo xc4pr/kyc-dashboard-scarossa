@@ -631,7 +631,19 @@
 
             <!-- Abschnitt B: WB-Personalien (902.9) -->
             <div>
-              <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">B — WB-Personalien (Formular 902.9)</h3>
+              <div class="flex items-center gap-3 mb-2 flex-wrap">
+                <h3 class="text-xs font-semibold text-gray-700 uppercase tracking-wide">B — WB-Personalien (Formular 902.9)</h3>
+                <button type="button" @click="copyVpToWb()" x-show="data.vp_typ === 'np'"
+                        class="text-xs px-2.5 py-1 rounded border border-gray-300 text-gray-600 hover:border-brand hover:text-brand transition-colors">
+                  ↧ Von Vertragspartei übernehmen
+                </button>
+                <span class="text-xs text-gray-400" x-show="wbCopied" x-cloak>✓ übernommen</span>
+              </div>
+
+              <!-- Kürzung: VP ist selber WB → Daten werden automatisch übernommen -->
+              <div class="mb-4 bg-blue-50 rounded px-4 py-2.5 text-sm text-blue-800" x-show="data.wb_typ_np_selber && data.vp_typ === 'np'" x-cloak>
+                Die Vertragspartei ist selber wirtschaftlich berechtigt — die Personalien wurden automatisch übernommen und müssen nicht erneut erfasst werden.
+              </div>
 
               <!-- Hinweis-Banner 902.9 -->
               <div class="mb-4 bg-amber-50 border border-amber-300 rounded px-4 py-2.5 flex items-start gap-2">
@@ -1242,3 +1254,19 @@
           </div>
         </div>
       </section>
+
+      <!-- ══════════════════════════════════════════════════════
+           ABSCHLUSS — Speichern & Export
+      ══════════════════════════════════════════════════════ -->
+      <div class="form-bottom-bar">
+        <div class="fb-note">
+          <span x-show="!validationErrors.length">Alle Angaben werden lokal &amp; verschlüsselt gespeichert.</span>
+          <span x-show="validationErrors.length" style="color:var(--danger)" x-text="validationErrors.length + ' Pflichtfeld(er) fehlen — rot markiert.'"></span>
+        </div>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn btn-ghost" @click="cancelForm()">Abbrechen</button>
+        <button class="btn" @click="openExportPreview()" :disabled="exporting">
+          <span x-text="exporting ? 'Erzeuge…' : 'Vorschau & Export'"></span>
+        </button>
+        <button class="btn btn-primary" @click="savePerson()">💾 Person speichern</button>
+      </div>

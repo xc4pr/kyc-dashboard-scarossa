@@ -147,7 +147,8 @@ function deriveIdentity(kyc) {
 function guessForeign(kyc) {
   const nat = (kyc && kyc.np_staatsangehoerigkeit || '').toLowerCase().trim();
   if (!nat) return false;
-  return !/(schweiz|switzerland|swiss|ch|schweizer)/.test(nat);
+  // Wortgrenzen! Sonst gilt "Chile"/"China" wegen des Teilstrings "ch" als Schweiz.
+  return !/(^|[\s,/])(schweiz|schweizerin?|switzerland|swiss|ch)($|[\s,/.])/.test(nat);
 }
 
 function upsertPerson(person) {

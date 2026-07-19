@@ -222,6 +222,18 @@ function createWindow() {
       }, 2600);
     });
   }
+  // Dev: E2E-/Bug-Bounty-Suite (KYC_E2E) — fährt Nutzer-Szenarien in der echten App.
+  if (process.env.KYC_E2E) {
+    win.webContents.on('did-finish-load', () => {
+      setTimeout(async () => {
+        try {
+          const out = await require('./tests/e2e').run(win);
+          console.log('E2E_RESULT=' + out);
+        } catch (e) { console.log('E2E_ERR=' + e.message); }
+        app.exit(0);
+      }, 2800);
+    });
+  }
   // Dev: IPC-Clone-Grenze testen (Alpine-Proxy → plain) — nur KYC_CLONETEST.
   if (process.env.KYC_CLONETEST) {
     win.webContents.on('did-finish-load', () => {
@@ -296,9 +308,10 @@ function createWindow() {
         await shot('dashboard');
         await setView('persons'); await shot('persons');
         await setView('screening'); await shot('screening');
+        await setView('database'); await shot('database');
         await setView('settings'); await shot('settings');
         await setView('form'); await shot('form');
-        app.quit();
+        app.exit(0);
       }, 2600);
     });
   }
