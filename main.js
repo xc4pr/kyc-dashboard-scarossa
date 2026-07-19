@@ -222,6 +222,55 @@ function createWindow() {
       }, 2600);
     });
   }
+  // Dev: Test-Formulare erzeugen (KYC_MAKETEST=<zielordner>) — nutzt die echte
+  // DOCX-Befüllung im Renderer und schreibt fertige Export-ZIPs.
+  if (process.env.KYC_MAKETEST) {
+    win.webContents.on('did-finish-load', () => {
+      setTimeout(async () => {
+        try {
+          const out = await win.webContents.executeJavaScript(`(async () => {
+            const b64 = ab => { const u = new Uint8Array(ab); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+            const fm = await window.api.docx.fieldmap();
+            const mk = (o) => Object.assign(window.KYC.defaultData(), o);
+            const putin = mk({ vp_typ: 'np', vqf_mitglied_nr: 'M-1234', gwg_file_nr: '2026-100',
+              filler_name: 'Test Import', filler_datum: '2026-07-19',
+              np_vorname: 'Vladimir', np_name: 'Putin', np_strasse: 'Kremlin 1', np_plz: '101000', np_ort: 'Moskau',
+              np_geburtsdatum: '1952-10-07', np_staatsangehoerigkeit: 'Russland',
+              np_identifikationsdokument: 'Reisepass RU-1234567', np_ausweiskopie_beigefuegt: true,
+              vertragsschluss_datum: '2026-07-01', aufnahme_persoenlich: true,
+              wb_typ_np_selber: true, wb_name: 'Putin', wb_vorname: 'Vladimir',
+              wb_geburtsdatum: '1952-10-07', wb_nationalitaet: 'Russland',
+              wb_strasse: 'Kremlin 1', wb_plz: '101000', wb_ort: 'Moskau',
+              pep_ausl_ja: true, pep_ausl_nein: false, high_risk_ja: true, high_risk_nein: false,
+              lr_sitz: 2, risiko_mit_erhoehtem: true, risiko_ohne_erhoehtes: false,
+              kp_beruf: 'Politiker', kp_zweck: 'Vermögensanlage', kp_geschaeftsvolumen: 'CHF 50000' });
+            const max = mk({ vp_typ: 'np', vqf_mitglied_nr: 'M-1234', gwg_file_nr: '2026-101',
+              filler_name: 'Test Import', filler_datum: '2026-07-19',
+              np_vorname: 'Max', np_name: 'Mustermann', np_strasse: 'Bahnhofstrasse 10', np_plz: '8001', np_ort: 'Zürich',
+              np_geburtsdatum: '1985-05-12', np_staatsangehoerigkeit: 'Schweiz',
+              np_identifikationsdokument: 'ID CH-7654321', np_ausweiskopie_beigefuegt: true,
+              vertragsschluss_datum: '2026-06-15', aufnahme_persoenlich: true,
+              wb_typ_np_selber: true, wb_name: 'Mustermann', wb_vorname: 'Max',
+              wb_geburtsdatum: '1985-05-12', wb_nationalitaet: 'Schweiz',
+              wb_strasse: 'Bahnhofstrasse 10', wb_plz: '8001', wb_ort: 'Zürich',
+              kp_beruf: 'Informatiker', kp_einkommen: 'CHF 95000', kp_zweck: 'Sparen in Bitcoin',
+              kp_geschaeftsvolumen: 'CHF 10000' });
+            return JSON.stringify({
+              putin: b64(await window.KYC.buildZip(putin, fm)),
+              max: b64(await window.KYC.buildZip(max, fm))
+            });
+          })()`);
+          const dir = process.env.KYC_MAKETEST;
+          fs.mkdirSync(dir, { recursive: true });
+          const o = JSON.parse(out);
+          fs.writeFileSync(path.join(dir, 'GwG_Putin_Vladimir.zip'), Buffer.from(o.putin, 'base64'));
+          fs.writeFileSync(path.join(dir, 'GwG_Mustermann_Max.zip'), Buffer.from(o.max, 'base64'));
+          console.log('MAKETEST_OK dir=' + dir);
+        } catch (e) { console.log('MAKETEST_ERR=' + e.message); }
+        app.exit(0);
+      }, 2800);
+    });
+  }
   // Dev: E2E-/Bug-Bounty-Suite (KYC_E2E) — fährt Nutzer-Szenarien in der echten App.
   if (process.env.KYC_E2E) {
     win.webContents.on('did-finish-load', () => {
