@@ -1,6 +1,6 @@
 {
   "name": "kyc-dashboard-scarossa",
-  "version": "2.1.0",
+  "version": "2.3.6",
   "description": "KYC-Dashboard mit Personendatenbank und Sanktions-/PEP-Screening (SECO + dilisense) für VQF/GwG-Compliance",
   "main": "main.js",
   "author": "Scarossa <jopabl3000@gmail.com>",

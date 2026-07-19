@@ -547,6 +547,7 @@ function registerIpc() {
   // App-Infos
   ipcMain.handle('app:info', () => ({
     platform: process.platform,
+    version: app.getVersion(),
     versions: { electron: process.versions.electron, node: process.versions.node, chrome: process.versions.chrome },
     dataDir: store.dataDir(),
     dbFile: store.dbFilePath(),

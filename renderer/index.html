@@ -122,7 +122,7 @@
     <div class="sidebar-foot">
       <div x-show="scheduler.installed"><span style="color:var(--ok)">●</span> Auto-Screening aktiv</div>
       <div x-show="!scheduler.installed"><span style="color:var(--text-faint)">○</span> Auto-Screening aus</div>
-      <div style="margin-top:6px" x-text="'v2.1 · ' + (appInfo.platform||'')"></div>
+      <div style="margin-top:6px" x-text="'v' + (appInfo.version||'') + ' · ' + (appInfo.platform||'')"></div>
     </div>
   </nav>
 
