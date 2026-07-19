@@ -454,29 +454,52 @@ document.addEventListener('alpine:init', () => {
       this.importing = true;
       try {
         const res = await window.KYCImport.importFileList(fileList, this.fieldMap);
-        let saved = 0, updated = 0, skipped = 0;
+        const ALL = window.KYCImport.ALL_TEMPLATES;
+        let saved = 0, merged = 0, skipped = 0, incomplete = 0;
         for (const p of res.persons) {
-          if (!window.KYC.vpName(p.data)) continue;   // ohne Namen überspringen
+          const name = window.KYC.vpName(p.data);
+          if (!name) continue;   // ohne Namen überspringen
+          const missing = ALL.filter(t => !(p.tpls || []).includes(t));
+
+          // Unvollständig? Nutzer entscheidet.
+          if (missing.length) {
+            const goOn = confirm(
+              `Die Daten von „${name}" sind unvollständig - es fehlen: ${missing.join(', ')}.\n\n` +
+              `Trotzdem importieren? Die fehlenden Formulare können später per erneutem ` +
+              `Import ergänzt oder manuell nachgetragen werden.\n\n` +
+              `[OK] trotzdem importieren · [Abbrechen] diese Person überspringen`);
+            if (!goOn) { skipped++; continue; }
+            incomplete++;
+          }
+
           const dup = this.findDupLocal(p.data);
           if (dup) {
-            const name = window.KYC.vpName(p.data);
-            if (!confirm(`„${name}" ist bereits erfasst. Bestehenden Datensatz mit den importierten Daten aktualisieren?\n\n[OK] = aktualisieren · [Abbrechen] = überspringen`)) { skipped++; continue; }
-            await window.api.persons.save(plain({ id: dup.id, kyc: p.data }));
-            updated++;
+            // Zusammenführen ohne Vermischung: nur leere Felder ergänzen,
+            // abweichende Werte behalten den bestehenden Stand.
+            const m = this.mergeKyc(dup.kyc || {}, p.data);
+            const prevMissing = dup.missingForms || [];
+            const newMissing = prevMissing.filter(t => !(p.tpls || []).includes(t));
+            const info = m.conflicts
+              ? `${m.filled} leere Felder werden ergänzt, ${m.conflicts} abweichende Felder behalten den bestehenden Wert.`
+              : (m.filled ? `${m.filled} leere Felder werden ergänzt.` : `Keine neuen Angaben - Datensatz bleibt unverändert.`);
+            if (!confirm(`„${name}" ist bereits erfasst. Daten zusammenführen?\n\n${info}\n\n[OK] zusammenführen · [Abbrechen] überspringen`)) { skipped++; continue; }
+            await window.api.persons.save(plain({ id: dup.id, kyc: m.merged, missingForms: newMissing }));
+            merged++;
           } else {
-            await window.api.persons.save(plain({ kyc: p.data }));
+            await window.api.persons.save(plain({ kyc: p.data, missingForms: missing }));
             saved++;
           }
         }
         await this.reload();
         const parts = [];
         if (saved) parts.push(saved + ' neu importiert');
-        if (updated) parts.push(updated + ' aktualisiert');
+        if (merged) parts.push(merged + ' zusammengeführt');
+        if (incomplete) parts.push(incomplete + ' unvollständig (siehe Markierung)');
         if (skipped) parts.push(skipped + ' übersprungen');
         if (res.skipped.length) parts.push(res.skipped.length + ' Datei(en) nicht erkannt');
-        if (!saved && !updated && !skipped && !res.skipped.length) parts.push('Keine verwertbaren Formulare gefunden');
-        this.showToast((saved || updated) ? 'ok' : 'warn', parts.join(' · '));
-        if (saved || updated) this.view = 'persons';
+        if (!saved && !merged && !skipped && !res.skipped.length) parts.push('Keine verwertbaren Formulare gefunden');
+        this.showToast((saved || merged) ? 'ok' : 'warn', parts.join(' · '));
+        if (saved || merged) this.view = 'persons';
       } catch (err) {
         this.showToast('danger', 'Import fehlgeschlagen: ' + err.message);
       } finally {
@@ -556,6 +579,22 @@ document.addEventListener('alpine:init', () => {
     },
     fmtD(iso) { if (!iso) return '-'; const d = iso.slice(0, 10).split('-'); return d.length === 3 ? `${d[2]}.${d[1]}.${d[0]}` : iso; },
     async loadUsage() { try { this.dilisenseUsage = await window.api.dilisense.usage(); } catch (_) {} },
+
+    // Zusammenführen ohne Vermischung: Import füllt nur leere/Default-Felder;
+    // bei abweichenden vorhandenen Werten gewinnt IMMER der bestehende Datensatz.
+    mergeKyc(existing, imported) {
+      const def = window.KYC.defaultData();
+      const isDefault = (k, v) => JSON.stringify(v) === JSON.stringify(def[k]) || v === '' || v == null;
+      const merged = Object.assign({}, def, existing);
+      let filled = 0, conflicts = 0;
+      for (const k of Object.keys(def)) {
+        const imp = imported[k];
+        if (isDefault(k, imp)) continue;                    // Import bringt nichts Neues
+        if (isDefault(k, merged[k])) { merged[k] = imp; filled++; }
+        else if (JSON.stringify(merged[k]) !== JSON.stringify(imp)) conflicts++;
+      }
+      return { merged, filled, conflicts };
+    },
 
     findDupLocal(data) {
       const name = (window.KYC.vpName(data) || '').toLowerCase().trim();

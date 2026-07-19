@@ -174,14 +174,15 @@ async function importFileList(files, fieldMap) {
 
     if (name.endsWith('.zip')) {
       let zip; try { zip = await JSZip.loadAsync(ab); } catch { skipped.push(f.name); continue; }
-      const raws = {}; let any = false;
+      const raws = {}; const tpls = new Set();
       for (const fn of Object.keys(zip.files)) {
         if (!fn.toLowerCase().endsWith('.docx')) continue;
         const dab = await zip.files[fn].async('arraybuffer');
         const r = await parseTemplateDocx(dab, fieldMap);
-        if (r) { mergeRaw(raws, r.raw); any = true; }
+        if (r) { mergeRaw(raws, r.raw); tpls.add(r.tpl); }
       }
-      if (any) persons.push({ raw: raws, src: f.name }); else skipped.push(f.name);
+      if (tpls.size) persons.push({ raw: raws, src: f.name, tpls: Array.from(tpls) });
+      else skipped.push(f.name);
     } else if (name.endsWith('.docx')) {
       const r = await parseTemplateDocx(ab, fieldMap);
       if (r) loose.push({ tpl: r.tpl, raw: r.raw, src: f.name }); else skipped.push(f.name);
@@ -196,17 +197,19 @@ async function importFileList(files, fieldMap) {
     const distinct = new Set(tpls).size === tpls.length;
     if (distinct && loose.length > 1) {
       const raws = {}; for (const x of loose) mergeRaw(raws, x.raw);
-      persons.push({ raw: raws, src: loose.map(x => x.src).join(', ') });
+      persons.push({ raw: raws, src: loose.map(x => x.src).join(', '), tpls });
     } else {
-      for (const x of loose) persons.push({ raw: x.raw, src: x.src });
+      for (const x of loose) persons.push({ raw: x.raw, src: x.src, tpls: [x.tpl] });
     }
   }
 
   return {
-    persons: persons.map(p => ({ data: rawToData(p.raw), src: p.src })),
+    persons: persons.map(p => ({ data: rawToData(p.raw), src: p.src, tpls: p.tpls })),
     skipped,
     parsed: persons.length
   };
 }
 
-window.KYCImport = { importFileList };
+const ALL_TEMPLATES = ['902.1', '902.4', '902.5', '902.9'];
+
+window.KYCImport = { importFileList, ALL_TEMPLATES };

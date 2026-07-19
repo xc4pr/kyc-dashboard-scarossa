@@ -172,7 +172,8 @@ function upsertPerson(person) {
     foreign: person.foreign != null ? person.foreign : guessForeign(person.kyc),
     lastScreenedAt: null, screeningStatus: 'never', screeningSummary: '',
     screenings: [],
-    clearedHits: []   // vom Menschen als False-Positive abgehakte Treffer (hitKeys)
+    clearedHits: [],  // vom Menschen als False-Positive abgehakte Treffer (hitKeys)
+    missingForms: person.missingForms || []   // beim Import fehlende Formulare (z. B. ['902.4'])
   };
   cache.persons.push(rec);
   persist();

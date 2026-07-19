@@ -131,6 +131,39 @@ const PAGE_SUITE = `(async () => {
   } catch (e) { ok('import-dup-updates', false, e.message); }
   function plainCopy(x) { return JSON.parse(JSON.stringify(x)); }
 
+  // ── 13b) Teilimport: nur 2 von 4 Formularen → Nachfrage, Import mit Markierung ──
+  try {
+    const pd = mkData({ np_vorname: 'Partial', np_name: 'Person', gwg_file_nr: '2026-777', kp_beruf: 'Bäcker' });
+    const fullAb = await window.KYC.buildZip(pd, d.fieldMap);
+    const z = await JSZip.loadAsync(fullAb);
+    const part = new JSZip();
+    part.file('902.1.docx', await z.file('902.1.docx').async('arraybuffer'));
+    part.file('902.9.docx', await z.file('902.9.docx').async('arraybuffer'));
+    const partAb = await part.generateAsync({ type: 'arraybuffer' });
+    await d.importFiles([new File([partAb], 'GwG_partial.zip')]); await sleep(200);
+    const pp = d.persons.find(p => p.identity.displayName === 'Partial Person');
+    ok('partial-import-saved', !!pp);
+    ok('partial-import-marked', pp && pp.missingForms && pp.missingForms.length === 2 && pp.missingForms.includes('902.4'), pp && (pp.missingForms || []).join(','));
+    ok('partial-no-904-data', pp && !pp.kyc.kp_beruf, 'kp_beruf=' + (pp && pp.kyc.kp_beruf));
+
+    // ── 13c) Nachimport des vollständigen ZIPs → zusammenführen, Markierung weg ──
+    const cnt = d.persons.length;
+    await d.importFiles([new File([fullAb], 'GwG_full.zip')]); await sleep(200);
+    const pp2 = d.persons.find(p => p.identity.displayName === 'Partial Person');
+    ok('merge-no-duplicate', d.persons.length === cnt);
+    ok('merge-completes', pp2 && (pp2.missingForms || []).length === 0 && pp2.kyc.kp_beruf === 'Bäcker');
+
+    // ── 13d) Keine Vermischung: abweichender Wert behält bestehenden Stand ──
+    const pd2 = mkData({ np_vorname: 'Partial', np_name: 'Person', gwg_file_nr: '2026-777', kp_beruf: 'Metzger', kp_zweck: 'NEU' });
+    const conflictAb = await window.KYC.buildZip(pd2, d.fieldMap);
+    await d.importFiles([new File([conflictAb], 'GwG_conflict.zip')]); await sleep(200);
+    const pp3 = d.persons.find(p => p.identity.displayName === 'Partial Person');
+    ok('merge-keeps-existing', pp3 && pp3.kyc.kp_beruf === 'Bäcker', 'kp_beruf=' + (pp3 && pp3.kyc.kp_beruf));
+    ok('merge-fills-empty', pp3 && pp3.kyc.kp_zweck === 'NEU');
+  } catch (e) { ok('partial-import-saved', false, e.message); }
+  function mkData(o) { return Object.assign(window.KYC.defaultData(), { vp_typ: 'np', filler_name: 'T', filler_datum: '2026-07-19',
+    np_geburtsdatum: '1970-01-01', np_staatsangehoerigkeit: 'Schweiz', np_strasse: 'W 1', np_plz: '8000', np_ort: 'Zürich' }, o); }
+
   // ── 14) AML: Schrott-CSV → klare Fehlermeldung, kein Crash ──
   const amlErr = await window.api.aml.analyze({ text: 'foo;bar\\n1;2\\n', name: 'x.csv' }).then(() => '').catch(e => e.message);
   ok('aml-bad-csv-message', amlErr.includes('CSV nicht erkannt'));

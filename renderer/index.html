@@ -257,6 +257,7 @@
                   <span class="badge tag" x-text="typLabel(p)"></span>
                   <span class="badge foreign" x-show="p.foreign" style="margin-left:4px">Ausland</span>
                   <span class="badge review" x-show="kycStale(p)" style="margin-left:4px" title="KYC-Daten seit über 1 Jahr nicht aktualisiert (VQF: regelmässige Überprüfung)">KYC &gt; 1 Jahr</span>
+                  <span class="badge hit" x-show="p.missingForms && p.missingForms.length" style="margin-left:4px" :title="'Beim Import fehlten: ' + (p.missingForms||[]).join(', ')">Unvollständig</span>
                 </td>
                 <td x-text="p.identity.nationality || '-'"></td>
                 <td x-text="p.lastScreenedAt ? fmtDate(p.lastScreenedAt) : '-'"></td>
@@ -550,7 +551,8 @@
                   <div class="row-name" x-text="p.identity.displayName || '(ohne Name)'"></div>
                   <div class="row-sub" x-text="(p.identity.nationality || '') + (p.identity.dob ? ' · ' + geburt(p.identity.dob) : '')"></div>
                 </td>
-                <td><span class="badge tag" x-text="typLabel(p)"></span></td>
+                <td><span class="badge tag" x-text="typLabel(p)"></span>
+                    <span class="badge hit" x-show="p.missingForms && p.missingForms.length" style="margin-left:4px" :title="'Beim Import fehlten: ' + (p.missingForms||[]).join(', ')">Unvollständig</span></td>
                 <td class="mono" x-text="(p.kyc && p.kyc.gwg_file_nr) || '-'"></td>
                 <td x-text="p.lastScreenedAt ? fmtDate(p.lastScreenedAt) : '-'"></td>
                 <td><span class="badge" :class="p.screeningStatus" x-html="statusBadge(p.screeningStatus)"></span></td>
