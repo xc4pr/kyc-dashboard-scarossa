@@ -222,6 +222,39 @@ function createWindow() {
       }, 2600);
     });
   }
+  // Dev: IPC-Clone-Grenze testen (Alpine-Proxy → plain) — nur KYC_CLONETEST.
+  if (process.env.KYC_CLONETEST) {
+    win.webContents.on('did-finish-load', () => {
+      setTimeout(async () => {
+        try {
+          const out = await win.webContents.executeJavaScript(`(async () => {
+            const el = document.querySelector('[x-data]');
+            const d = Alpine.$data(el);
+            const r = {};
+            // 1) Person über Alpine-Proxy speichern
+            d.newPerson();
+            d.data.np_vorname = 'Clone'; d.data.np_name = 'Test'; d.data.np_ort = 'Uster';
+            await d.savePerson();
+            r.personSaved = d.persons.some(p => p.identity.displayName === 'Clone Test');
+            // 2) AML analysieren (echte CSV), speichern, gespeicherte rendern
+            const resp = await window.api.aml.analyze({ text: 'a;b\\n1;2\\n', name: 'x' }).then(() => 'ok').catch(e => e.message);
+            r.badCsvRejected = String(resp).includes('CSV nicht erkannt');
+            d.amlResult = { agg: JSON.parse(${JSON.stringify(JSON.stringify(require('./src/aml').analyze(require('./src/aml').parseCsv(fs.readFileSync(process.env.AML_CSV, 'utf-8')))))}), html: '', records: 1, sourceFile: 'test.csv' };
+            await d.amlSaveReport();
+            r.amlSaved = d.amlReports.length > 0;
+            await d.amlOpenSaved(d.amlReportsSorted[0]);
+            r.renderOk = (d.amlResult.html || '').includes('AML-Revisionsunterlagen');
+            // 3) Einstellungen (Proxy) speichern
+            await d.saveSettings();
+            r.settingsOk = true;
+            return JSON.stringify(r);
+          })()`);
+          console.log('CLONETEST=' + out);
+        } catch (e) { console.log('CLONETEST_ERR=' + e.message); }
+        app.quit();
+      }, 2800);
+    });
+  }
   // Dev-Selbsttest des Import-Round-Trips (nur wenn KYC_SELFTEST gesetzt).
   if (process.env.KYC_SELFTEST) {
     win.webContents.on('did-finish-load', () => {

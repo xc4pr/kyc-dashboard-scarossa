@@ -2,6 +2,10 @@
 
 // ─── Alpine-App: Views, Datenbank, Screening ──────────────────────────────────
 
+// Alpine-Proxies können nicht per Structured Clone über IPC (Electron-Sandbox).
+// Alles, was an window.api.* geht, vorher in plain JSON umwandeln.
+function plain(x) { return x === undefined ? x : JSON.parse(JSON.stringify(x)); }
+
 document.addEventListener('alpine:init', () => {
   Alpine.data('app', () => ({
     // Views / Theme
@@ -158,7 +162,7 @@ document.addEventListener('alpine:init', () => {
 
     async savePerson() {
       if (!this.KYCname()) { this.showToast('warn', 'Bitte mindestens Name oder Firma der Vertragspartei erfassen.'); return; }
-      const rec = await window.api.persons.save({ id: this.currentPersonId, kyc: this.data, foreign: this.foreign });
+      const rec = await window.api.persons.save(plain({ id: this.currentPersonId, kyc: this.data, foreign: this.foreign }));
       this.currentPersonId = rec.id;
       this._formSnap = this.snapForm();   // gespeichert → nicht mehr dirty
       await this.reload();
@@ -175,7 +179,7 @@ document.addEventListener('alpine:init', () => {
       // Aktuelle Treffer als False-Positive merken → beim nächsten Lauf nicht neu flaggen
       const last = (p.screenings || [])[0];
       const keys = last && last.hits ? last.hits.map(h => h.key).filter(Boolean) : [];
-      await window.api.screening.clearHits(p.id, keys);
+      await window.api.screening.clearHits(p.id, plain(keys));
       await this.reload();
       this.showToast('ok', 'Als geprüft markiert — dieser Treffer wird nicht erneut gemeldet.');
     },
@@ -225,13 +229,13 @@ document.addEventListener('alpine:init', () => {
 
     // ── Einstellungen ──
     async saveSettings() {
-      this.settings = await window.api.settings.set(this.settings);
+      this.settings = await window.api.settings.set(plain(this.settings));
       this.showToast('ok', 'Einstellungen gespeichert.');
     },
     async testDilisense() {
       this.diliBusy = true; this.diliMsg = { ok: false, text: '' };
       try {
-        await window.api.settings.set({ dilisenseApiKey: this.settings.dilisenseApiKey });
+        await window.api.settings.set(plain({ dilisenseApiKey: this.settings.dilisenseApiKey }));
         const r = await window.api.dilisense.test(this.settings.dilisenseApiKey);
         await this.loadUsage();
         this.diliMsg = { ok: true, text: 'Verbindung ok (Testabfrage lieferte ' + r.total_hits + ' Treffer).' };
@@ -240,7 +244,7 @@ document.addEventListener('alpine:init', () => {
     },
     async installSchedule() {
       try {
-        await window.api.settings.set(this.settings);
+        await window.api.settings.set(plain(this.settings));
         await window.api.scheduler.install({ day: this.schedDay, time: this.schedTime });
         this.scheduler = await window.api.scheduler.status();
         this.showToast('ok', 'Automatisches Screening aktiviert (' + this.schedDay + ' ' + this.schedTime + ').');
@@ -291,10 +295,10 @@ document.addEventListener('alpine:init', () => {
           if (dup) {
             const name = window.KYC.vpName(p.data);
             if (!confirm(`„${name}" ist bereits erfasst. Bestehenden Datensatz mit den importierten Daten aktualisieren?\n\n[OK] = aktualisieren · [Abbrechen] = überspringen`)) { skipped++; continue; }
-            await window.api.persons.save({ id: dup.id, kyc: p.data });
+            await window.api.persons.save(plain({ id: dup.id, kyc: p.data }));
             updated++;
           } else {
-            await window.api.persons.save({ kyc: p.data });
+            await window.api.persons.save(plain({ kyc: p.data }));
             saved++;
           }
         }
@@ -337,7 +341,7 @@ document.addEventListener('alpine:init', () => {
       this.amlBusy = true;
       try {
         const jahr = (this.amlResult.agg.periodTo || '').slice(0, 4);
-        const r = await window.api.aml.exportPdf(this.amlResult.agg, { pruefer: this.amlPruefer }, 'AML_Revision_Bericht_' + jahr + '.pdf');
+        const r = await window.api.aml.exportPdf(plain(this.amlResult.agg), { pruefer: this.amlPruefer }, 'AML_Revision_Bericht_' + jahr + '.pdf');
         if (r.saved) this.showToast('ok', 'PDF gespeichert: ' + r.path);
       } catch (e) { this.showToast('danger', 'PDF-Export fehlgeschlagen: ' + e.message); }
       finally { this.amlBusy = false; }
@@ -345,10 +349,10 @@ document.addEventListener('alpine:init', () => {
     async amlSaveReport() {
       if (!this.amlResult) return;
       const a = this.amlResult.agg;
-      await window.api.aml.save({
+      await window.api.aml.save(plain({
         label: (a.periodTo || '').slice(0, 4), periodFrom: a.periodFrom, periodTo: a.periodTo,
         pruefer: this.amlPruefer, sourceFile: this.amlResult.sourceFile, agg: a
-      });
+      }));
       await this.amlLoadList();
       this.showToast('ok', 'Auswertung in Datenbank gespeichert.');
     },
@@ -356,7 +360,7 @@ document.addEventListener('alpine:init', () => {
     async amlOpenSaved(r) {
       this.amlBusy = true;
       try {
-        const html = await window.api.aml.render(r.agg, { pruefer: r.pruefer });
+        const html = await window.api.aml.render(plain(r.agg), { pruefer: r.pruefer });
         this.amlPruefer = r.pruefer || '';
         this.amlResult = { agg: r.agg, html, records: r.agg.kpis.completed + r.agg.kpis.cancelled, sourceFile: r.sourceFile };
       } finally { this.amlBusy = false; }
