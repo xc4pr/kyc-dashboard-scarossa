@@ -601,6 +601,8 @@ if (process.argv.includes('--amltest')) {
             }
           });
           autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+          // Bei lange laufender App: alle 6 Stunden erneut prüfen
+          setInterval(() => autoUpdater.checkForUpdatesAndNotify().catch(() => {}), 6 * 3600 * 1000);
         } catch (_) { /* updater optional */ }
       }
       app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
