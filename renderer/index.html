@@ -499,13 +499,44 @@
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <h3 style="font-size:16px;margin:0;font-family:'Barlow Condensed';text-transform:uppercase">Personen (<span x-text="filteredPersons.length"></span>)</h3>
         <span class="spacer" style="flex:1"></span>
-        <!-- bewusst dezent: Verwaltungsmodus mit Löschfunktion -->
-        <a href="#" class="small muted" @click.prevent="dbManage = !dbManage; selPersons = {}; selReports = {}"
+        <!-- bewusst dezent: Verwaltungsmodus mit Archivierung; Archiv erst darin sichtbar -->
+        <a href="#" class="small muted" x-show="dbManage && dbTab==='active'" x-cloak
+           @click.prevent="openArchive()" style="text-decoration:none">Archiv…</a>
+        <a href="#" class="small muted" @click.prevent="dbManage = !dbManage; dbTab = 'active'; selPersons = {}; selReports = {}"
            x-text="dbManage ? 'Verwalten beenden' : 'Verwalten…'" style="text-decoration:none"></a>
-        <button class="btn btn-sm btn-danger" x-show="dbManage && selPersonCount" x-cloak
+        <button class="btn btn-sm btn-danger" x-show="dbManage && dbTab==='active' && selPersonCount" x-cloak
                 @click="deleteSelectedPersons()" x-text="selPersonCount + ' archivieren'"></button>
       </div>
-      <div class="table-wrap" style="margin-bottom:26px">
+
+      <!-- Unterreiter: Archiv (nur einsehen & wiederherstellen) -->
+      <div x-show="dbTab==='archive'" x-cloak style="margin-bottom:26px">
+        <div class="banner warn">
+          Archivierte Personen werden wegen der GwG-Aufbewahrungspflicht (10 Jahre) dauerhaft aufbewahrt und können hier nur <b>&nbsp;wiederhergestellt&nbsp;</b> werden.
+          <span class="spacer" style="flex:1"></span>
+          <a href="#" class="small" @click.prevent="dbTab='active'" style="white-space:nowrap">← Zurück zur aktiven Liste</a>
+        </div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Name / Firma</th><th>Typ</th><th>GwG-File</th><th>Archiviert am</th><th></th></tr></thead>
+            <tbody>
+              <template x-for="p in archived" :key="p.id">
+                <tr>
+                  <td><div class="row-name" x-text="p.identity.displayName || '(ohne Name)'"></div>
+                      <div class="row-sub" x-text="p.identity.nationality || ''"></div></td>
+                  <td><span class="badge tag" x-text="typLabel(p)"></span></td>
+                  <td class="mono" x-text="(p.kyc && p.kyc.gwg_file_nr) || '-'"></td>
+                  <td x-text="fmtDate(p.archivedAt)"></td>
+                  <td><div class="row-actions">
+                    <button class="btn btn-sm" @click="restoreFromArchive(p)">↩ Wiederherstellen</button>
+                  </div></td>
+                </tr>
+              </template>
+              <tr x-show="!archived.length"><td colspan="5" class="muted" style="text-align:center;padding:24px">Archiv ist leer.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-bottom:26px" x-show="dbTab==='active'">
         <table class="data">
           <thead><tr>
             <th x-show="dbManage" style="width:34px"></th>

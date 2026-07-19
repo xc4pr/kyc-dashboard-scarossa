@@ -494,8 +494,9 @@ function registerIpc() {
   ipcMain.handle('aml:save', (_e, report) => store.saveAmlReport(report));
   ipcMain.handle('aml:delete', (_e, id) => store.deleteAmlReport(id));
 
-  // Archiv (aufbewahrte, "gelöschte" Personen)
+  // Archiv (aufbewahrte, "gelöschte" Personen) - nur einsehen & wiederherstellen
   ipcMain.handle('persons:archived', () => store.listArchived());
+  ipcMain.handle('persons:restore', (_e, id) => store.restorePerson(id));
 
   // HTML-Partial laden (Aufteilung des Renderer-Monolithen) - Whitelist
   const ALLOWED_PARTIALS = ['form-sections.html'];

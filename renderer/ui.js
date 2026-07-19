@@ -56,6 +56,7 @@ document.addEventListener('alpine:init', () => {
     exportPreview: null,
     diliSuggest: false, _diliDismissed: false,
     dbManage: false, selPersons: {}, selReports: {},
+    dbTab: 'active', archived: [],
 
     // Busy-Flags
     screenBusy: false, secoBusy: false, diliBusy: false,
@@ -305,6 +306,21 @@ document.addEventListener('alpine:init', () => {
       await this.reload();
       this.showToast('ok', ids.length + ' Person(en) archiviert.');
     },
+    // Archiv: einsehen & wiederherstellen (kein endgültiges Löschen - GwG)
+    async openArchive() {
+      try { this.archived = await window.api.persons.archived(); this.dbTab = 'archive'; }
+      catch (e) { this.showToast('danger', 'Archiv konnte nicht geladen werden: ' + e.message); }
+    },
+    async restoreFromArchive(p) {
+      if (!confirm('„' + (p.identity.displayName || '') + '" aus dem Archiv zurück in die aktive Liste verschieben?')) return;
+      try {
+        await window.api.persons.restore(p.id);
+        this.archived = await window.api.persons.archived();
+        await this.reload();
+        this.showToast('ok', 'Person wiederhergestellt.');
+      } catch (e) { this.showToast('danger', 'Wiederherstellen fehlgeschlagen: ' + e.message); }
+    },
+
     async deleteSelectedReports() {
       const ids = Object.keys(this.selReports).filter(k => this.selReports[k]);
       if (!ids.length) return;

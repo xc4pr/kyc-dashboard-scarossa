@@ -280,6 +280,17 @@ function deleteAmlReport(id) {
   return true;
 }
 
+// Archivierte Person zurück in die aktive Liste
+function restorePerson(id) {
+  const idx = (cache.archivedPersons || []).findIndex(p => p.id === id);
+  if (idx === -1) return null;
+  const [rec] = cache.archivedPersons.splice(idx, 1);
+  delete rec.archivedAt;
+  cache.persons.push(rec);
+  persist();
+  return rec;
+}
+
 // AML↔KYC-Verknüpfung
 function getAmlLinks() { return Object.assign({}, cache.amlLinks || {}); }
 function setAmlLink(customerRef, personId) {
@@ -296,6 +307,7 @@ function encryptionAvailable() { return crypto.available; }
 
 module.exports = {
   init, listPersons, getPerson, listArchived, upsertPerson, deletePerson, findDuplicate,
+  restorePerson,
   recordScreening, clearPersonHits, duePersons, deriveIdentity, guessForeign,
   getSettings, setSettings, getSeco, setSeco, dbFilePath, dataDir, encryptionAvailable,
   getDilisenseUsage, bumpDilisenseUsage,

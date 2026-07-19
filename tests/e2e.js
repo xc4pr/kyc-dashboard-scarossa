@@ -155,6 +155,17 @@ const PAGE_SUITE = `(async () => {
   await d.deleteSelectedReports(); await sleep(100);
   ok('db-delete-report', d.amlReports.length === rep - 1);
 
+  // ── 16b) Archiv: nur einsehen & wiederherstellen, kein Löschen ──
+  const beforeArch = d.persons.length;
+  const victim = d.persons[0];
+  await window.api.persons.remove(victim.id); await d.reload();
+  await d.openArchive();
+  ok('archive-visible', d.dbTab === 'archive' && d.archived.some(p => p.id === victim.id));
+  ok('archive-no-purge-api', !window.api.persons.purge && !window.api.persons.deleteArchived);
+  await d.restoreFromArchive(d.archived.find(p => p.id === victim.id));
+  ok('archive-restore', d.persons.length === beforeArch && d.archived.every(p => p.id !== victim.id));
+  d.dbTab = 'active';
+
   // ── 17) Dirty-Guard: Formular ändern → navTo fragt (confirm=true lässt durch) ──
   d.newPerson(); d.data.np_vorname = 'Dirty';
   d.navTo('dashboard');

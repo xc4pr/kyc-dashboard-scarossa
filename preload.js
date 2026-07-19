@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
     save: (p) => ipcRenderer.invoke('persons:save', p),
     remove: (id) => ipcRenderer.invoke('persons:delete', id),
     archived: () => ipcRenderer.invoke('persons:archived'),
+    restore: (id) => ipcRenderer.invoke('persons:restore', id),
     due: () => ipcRenderer.invoke('persons:due'),
     exportCsv: () => ipcRenderer.invoke('persons:exportCsv'),
     dossierPdf: (id) => ipcRenderer.invoke('persons:dossierPdf', id)
